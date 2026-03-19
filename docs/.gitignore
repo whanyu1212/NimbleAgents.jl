@@ -1,0 +1,8 @@
+# Dependencies
+node_modules/
+
+# Documenter + VitePress build output
+build/
+
+# OS files
+.DS_Store

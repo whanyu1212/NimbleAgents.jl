@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NimbleAgents</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <style>
+    [x-cloak] { display: none !important; }
+    .message-enter { animation: fadeSlideIn 0.15s ease-out; }
+    @keyframes fadeSlideIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    /* Scrollbar styling */
+    .chat-scroll::-webkit-scrollbar { width: 4px; }
+    .chat-scroll::-webkit-scrollbar-track { background: transparent; }
+    .chat-scroll::-webkit-scrollbar-thumb { background: #374151; border-radius: 2px; }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-100 h-screen flex flex-col" x-data="app()" x-init="init()">
+
+  <!-- Header -->
+  <header class="flex items-center justify-between px-5 py-3 bg-gray-900 border-b border-gray-800 shrink-0">
+    <div class="flex items-center gap-3">
+      <span class="text-indigo-400 font-bold text-lg tracking-tight">NimbleAgents</span>
+      <span class="text-gray-600 text-xs">dev ui</span>
+    </div>
+    <div class="flex items-center gap-3">
+      <!-- Agent selector -->
+      <select
+        x-model="selectedAgent"
+        class="bg-gray-800 border border-gray-700 text-gray-200 text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+      >
+        <option value="" disabled>Select agent...</option>
+        <template x-for="a in agents" :key="a.id">
+          <option :value="a.id" x-text="a.name"></option>
+        </template>
+      </select>
+      <!-- New conversation -->
+      <button
+        @click="newConversation()"
+        class="text-xs text-gray-400 hover:text-gray-200 border border-gray-700 hover:border-gray-500 rounded-lg px-3 py-1.5 transition"
+      >New chat</button>
+      <!-- Session ID badge -->
+      <span x-show="sessionId" x-cloak
+        class="text-xs text-gray-600 font-mono"
+        x-text="'session: ' + sessionId.slice(0,8) + '...'"
+      ></span>
+    </div>
+  </header>
+
+  <!-- Chat area -->
+  <main
+    class="flex-1 overflow-y-auto chat-scroll px-4 py-6 space-y-4"
+    x-ref="chatContainer"
+  >
+    <!-- Empty state -->
+    <div x-show="messages.length === 0" x-cloak
+      class="flex flex-col items-center justify-center h-full text-gray-600 gap-2"
+    >
+      <svg class="w-10 h-10 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+          d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+      </svg>
+      <p class="text-sm">Select an agent and start chatting</p>
+    </div>
+
+    <template x-for="(msg, i) in messages" :key="i">
+      <div class="message-enter flex" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
+
+        <!-- User message -->
+        <div x-show="msg.role === 'user'"
+          class="max-w-xl px-4 py-2.5 rounded-2xl rounded-tr-sm bg-indigo-600 text-white text-sm leading-relaxed"
+          x-text="msg.content"
+        ></div>
+
+        <!-- Assistant message (with optional tool calls) -->
+        <div x-show="msg.role === 'assistant'" class="max-w-2xl w-full space-y-2">
+
+          <!-- Tool call cards -->
+          <template x-for="(tc, j) in (msg.tool_calls || [])" :key="j">
+            <div class="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-xs font-mono">
+              <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-2">
+                  <span class="text-yellow-400">⚡</span>
+                  <span class="text-yellow-300 font-semibold" x-text="tc.name"></span>
+                </div>
+                <button
+                  @click="tc._open = !tc._open"
+                  class="text-gray-500 hover:text-gray-300 text-xs transition"
+                  x-text="tc._open ? '▲ hide' : '▼ args'"
+                ></button>
+              </div>
+              <!-- Args -->
+              <div x-show="tc._open" x-cloak class="mt-1 space-y-1">
+                <template x-for="[k, v] in Object.entries(tc.args || {})" :key="k">
+                  <div class="flex gap-2">
+                    <span class="text-gray-500 w-24 shrink-0" x-text="k + ':'"></span>
+                    <span class="text-gray-300 break-all" x-text="JSON.stringify(v)"></span>
+                  </div>
+                </template>
+              </div>
+              <!-- Result -->
+              <div x-show="tc.result !== undefined" class="mt-2 pt-2 border-t border-gray-700">
+                <span class="text-green-400">↳ </span>
+                <span class="text-gray-300 break-all" x-text="tc.result"></span>
+              </div>
+            </div>
+          </template>
+
+          <!-- Text content -->
+          <div x-show="msg.content"
+            class="bg-gray-800 border border-gray-700 px-4 py-3 rounded-2xl rounded-tl-sm text-sm leading-relaxed text-gray-100 whitespace-pre-wrap"
+            x-text="msg.content"
+          ></div>
+
+          <!-- Streaming cursor -->
+          <div x-show="msg.streaming"
+            class="inline-block w-2 h-4 bg-indigo-400 rounded-sm animate-pulse ml-1"
+          ></div>
+        </div>
+
+        <!-- HITL approval card -->
+        <div x-show="msg.role === 'interrupt'" class="max-w-2xl w-full">
+          <div class="bg-amber-950 border border-amber-700 rounded-xl px-4 py-4 space-y-3">
+            <div class="flex items-center gap-2">
+              <span class="text-amber-400 text-lg">⚠</span>
+              <span class="text-amber-300 font-semibold text-sm">Approval Required</span>
+            </div>
+            <p class="text-amber-100 text-sm whitespace-pre-wrap" x-text="msg.content"></p>
+            <!-- Pending tool list -->
+            <div class="flex flex-wrap gap-2">
+              <template x-for="t in (msg.tools || [])" :key="t">
+                <span class="bg-amber-900 text-amber-200 text-xs font-mono px-2 py-1 rounded"
+                  x-text="t"></span>
+              </template>
+            </div>
+            <!-- Approval actions (only show while still pending) -->
+            <div x-show="msg.pending" class="flex gap-2 pt-1">
+              <button
+                @click="approve(msg, 'approve')"
+                class="px-4 py-1.5 bg-green-700 hover:bg-green-600 text-white text-sm rounded-lg transition"
+              >Approve</button>
+              <button
+                @click="approve(msg, 'reject')"
+                class="px-4 py-1.5 bg-red-800 hover:bg-red-700 text-white text-sm rounded-lg transition"
+              >Reject</button>
+              <input
+                x-model="msg._custom"
+                @keydown.enter="approve(msg, msg._custom)"
+                placeholder="Custom instruction..."
+                class="flex-1 bg-gray-800 border border-gray-700 text-gray-200 text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500"
+              />
+              <button
+                @click="approve(msg, msg._custom)"
+                x-show="msg._custom"
+                class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition"
+              >Send</button>
+            </div>
+            <div x-show="!msg.pending" class="text-xs text-gray-500 italic">
+              Response sent — agent continuing...
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </template>
+  </main>
+
+  <!-- Input bar -->
+  <footer class="shrink-0 px-4 py-3 bg-gray-900 border-t border-gray-800">
+    <div class="flex gap-3 max-w-4xl mx-auto">
+      <textarea
+        x-model="input"
+        @keydown.enter.prevent="!$event.shiftKey && send()"
+        placeholder="Type a message... (Enter to send, Shift+Enter for newline)"
+        rows="1"
+        :disabled="running || !selectedAgent"
+        class="flex-1 bg-gray-800 border border-gray-700 text-gray-100 text-sm rounded-xl px-4 py-3
+               focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none
+               disabled:opacity-40 disabled:cursor-not-allowed placeholder-gray-600"
+      ></textarea>
+      <button
+        @click="send()"
+        :disabled="running || !selectedAgent || !input.trim()"
+        class="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40
+               disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition"
+      >
+        <span x-show="!running">Send</span>
+        <span x-show="running" class="flex items-center gap-1.5">
+          <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+          </svg>
+          Running
+        </span>
+      </button>
+    </div>
+    <p class="text-center text-xs text-gray-700 mt-2">
+      <span x-show="running" x-cloak>Agent is running...</span>
+      <span x-show="!running && !selectedAgent">Select an agent to begin</span>
+    </p>
+  </footer>
+
+  <script>
+  function app() {
+    return {
+      agents:        [],
+      selectedAgent: '',
+      sessionId:     null,
+      messages:      [],
+      input:         '',
+      running:       false,
+      currentRunId:  null,
+      currentMsg:    null,   // assistant message being streamed into
+      pendingTools:  {},     // tool_call name -> card ref waiting for result
+
+      async init() {
+        const res  = await fetch('/agents')
+        this.agents = await res.json()
+        if (this.agents.length === 1) this.selectedAgent = this.agents[0].id
+      },
+
+      newConversation() {
+        this.sessionId    = null
+        this.messages     = []
+        this.currentRunId = null
+        this.currentMsg   = null
+        this.running      = false
+      },
+
+      scrollBottom() {
+        this.$nextTick(() => {
+          const el = this.$refs.chatContainer
+          el.scrollTop = el.scrollHeight
+        })
+      },
+
+      async send() {
+        const text = this.input.trim()
+        if (!text || this.running || !this.selectedAgent) return
+
+        this.input   = ''
+        this.running = true
+
+        // Add user bubble
+        this.messages.push({ role: 'user', content: text })
+        this.scrollBottom()
+
+        // POST /chat
+        const res = await fetch('/chat', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({
+            agent_id:   this.selectedAgent,
+            session_id: this.sessionId,
+            input:      text,
+          }),
+        })
+
+        if (!res.ok) {
+          this.messages.push({ role: 'assistant', content: '⚠ Server error: ' + res.status })
+          this.running = false
+          return
+        }
+
+        const { run_id, session_id } = await res.json()
+        this.currentRunId = run_id
+        this.sessionId    = session_id
+
+        // Create streaming assistant message
+        this.currentMsg = { role: 'assistant', content: '', tool_calls: [], streaming: true }
+        this.messages.push(this.currentMsg)
+        this.scrollBottom()
+
+        // Subscribe to SSE stream
+        this.listenStream(run_id)
+      },
+
+      listenStream(run_id) {
+        const es = new EventSource(`/runs/${run_id}/stream`)
+
+        es.onmessage = (e) => {
+          const ev = JSON.parse(e.data)
+
+          if (ev.type === 'token') {
+            this.currentMsg.content += ev.data
+            this.scrollBottom()
+          }
+
+          else if (ev.type === 'tool_call') {
+            const card = { name: ev.data.name, args: ev.data.args, result: undefined, _open: true }
+            this.currentMsg.tool_calls.push(card)
+            // track by name so tool_result can fill it in
+            this.pendingTools[ev.data.name] = card
+            this.scrollBottom()
+          }
+
+          else if (ev.type === 'tool_result') {
+            const card = this.pendingTools[ev.data.name]
+            if (card) card.result = ev.data.result
+            delete this.pendingTools[ev.data.name]
+          }
+
+          else if (ev.type === 'interrupt') {
+            // Finish the current streaming message (may be empty if no text before interrupt)
+            this.currentMsg.streaming = false
+
+            // Push an interrupt card
+            const intMsg = {
+              role:     'interrupt',
+              content:  ev.data.message,
+              tools:    ev.data.tools || [],
+              pending:  true,
+              run_id:   run_id,
+              _custom:  '',
+            }
+            this.messages.push(intMsg)
+            this.scrollBottom()
+
+            // Prepare a new assistant message for after approval
+            this.currentMsg = { role: 'assistant', content: '', tool_calls: [], streaming: true }
+            this.messages.push(this.currentMsg)
+          }
+
+          else if (ev.type === 'done') {
+            this.currentMsg.streaming = false
+            // If we got a 'done' but content is empty (return_direct), fill from result
+            if (!this.currentMsg.content && ev.data.result) {
+              this.currentMsg.content = ev.data.result
+            }
+            this.running = false
+            es.close()
+            this.scrollBottom()
+          }
+
+          else if (ev.type === 'error') {
+            this.currentMsg.streaming = false
+            this.currentMsg.content   = '⚠ ' + ev.data.message
+            this.running = false
+            es.close()
+            this.scrollBottom()
+          }
+        }
+
+        es.onerror = () => {
+          if (this.currentMsg) this.currentMsg.streaming = false
+          this.running = false
+          es.close()
+        }
+      },
+
+      async approve(intMsg, response) {
+        intMsg.pending = false
+        await fetch(`/runs/${intMsg.run_id}/approve`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ response }),
+        })
+      },
+    }
+  }
+  </script>
+</body>
+</html>

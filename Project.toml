@@ -1,0 +1,28 @@
+name = "NimbleAgents"
+uuid = "b3b452bc-e432-4d72-a849-326f027585f4"
+version = "0.1.0"
+authors = ["whanyu1212 <whanyu1212@hotmail.com> and contributors"]
+
+[deps]
+HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
+JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+Mocking = "78c3b35d-d492-501b-9361-3d52fe80e533"
+PromptingTools = "670122d1-24a8-4d70-bfce-740807c42192"
+StreamCallbacks = "c1b9e933-98a0-46fc-8ea7-3b58b195fb0a"
+Term = "22787eb5-b846-44ae-b979-8e399b8463ab"
+UUIDs = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
+
+[compat]
+HTTP = "1.11.0"
+JSON3 = "1.14.3"
+Mocking = "0.8.1"
+StreamCallbacks = "0.7.0"
+Term = "2.0.8"
+UUIDs = "1.11.0"
+julia = "1.12"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
