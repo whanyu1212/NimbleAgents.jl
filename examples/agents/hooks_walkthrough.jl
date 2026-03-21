@@ -41,17 +41,19 @@ end
 
 hooks = AgentHooks(
 
-    on_llm_call = (agent, iteration) -> begin
+    before_llm_call = (agent, iteration, msgs) -> begin
         divider()
-        println("  [on_llm_call] #$(iteration)")
-        println("     agent : $(agent.name)")
-        println("     model : $(agent.model)")
-        println("     tools : $(join([t.name for t in agent.tools], ", "))")
+        println("  [before_llm_call] #$(iteration)")
+        println("     agent    : $(agent.name)")
+        println("     model    : $(agent.model)")
+        println("     tools    : $(join([t.name for t in agent.tools], ", "))")
+        println("     messages : $(length(msgs))")
         divider()
+        msgs
     end,
 
-    on_llm_result = (agent, iteration, response) -> begin
-        println("  [on_llm_result] #$(iteration)")
+    after_llm_call = (agent, iteration, response) -> begin
+        println("  [after_llm_call] #$(iteration)")
         println("     type          : $(nameof(typeof(response)))")
         println("     finish_reason : $(something(response.finish_reason, "—"))")
         usage = response.usage

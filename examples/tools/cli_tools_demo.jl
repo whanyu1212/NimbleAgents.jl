@@ -30,7 +30,7 @@ git_log_tool = CLITool(
     args        = [
         "n" => CLIArg(Int, "Number of recent commits to show (default 10)."),
     ],
-    working_dir = @__DIR__ |> dirname,   # run from repo root
+    working_dir = @__DIR__ |> dirname |> dirname,   # run from repo root
 )
 
 wc_tool = CLITool(
@@ -52,7 +52,7 @@ agent = Agent(
     Always show the raw tool output in your response.
     """,
     tools = [grep_tool, git_log_tool, wc_tool],
-    model = "gpt-4o-mini",
+    model = "gpt-5.4-nano-2026-03-17",
 )
 
 # ── Scenario 1: Code search ────────────────────────────────────────────────────

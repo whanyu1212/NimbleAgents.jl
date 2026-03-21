@@ -1,8 +1,8 @@
-# examples/hitl_on_llm_result.jl
+# examples/hitl_after_llm_call.jl
 #
-# Human-in-the-Loop via the on_llm_result hook (Pattern B — advanced).
+# Human-in-the-Loop via the after_llm_call hook (Pattern B — advanced).
 #
-# on_llm_result = (agent, iteration, msg) -> nothing
+# after_llm_call = (agent, iteration, msg) -> nothing
 #
 # Fires after every LLM response, before any tool executes. You receive the
 # full raw response object (msg) and can inspect tool_calls, content, tokens,
@@ -15,7 +15,7 @@
 #   - You need conditional logic that goes beyond a name allowlist
 #
 # Run from the project root:
-#   julia --project=. examples/hitl_on_llm_result.jl
+#   julia --project=. examples/hitl_after_llm_call.jl
 
 using DotEnv
 DotEnv.load!()
@@ -95,8 +95,8 @@ agent = Agent(
     send emails, and delete files. Always complete the user's request.
     """,
     tools = [send_email, delete_file, read_file, list_files],
-    model = "gpt-4o-mini",
-    hooks = AgentHooks(on_llm_result = smart_hitl_hook),
+    model = "gpt-5.4-nano-2026-03-17",
+    hooks = AgentHooks(after_llm_call = smart_hitl_hook),
 )
 
 # ── Approval loop ─────────────────────────────────────────────────────────────
@@ -133,7 +133,7 @@ end
 
 tprintln(Panel(
     "Example 1 — delete /tmp/ path (not production)\nNo approval needed — path does not start with /prod/.",
-    title = "on_llm_result", style = "cyan", padding = (0, 2),
+    title = "after_llm_call", style = "cyan", padding = (0, 2),
 ))
 
 session1 = Session(app_name="hitl", user_id="user")
@@ -146,7 +146,7 @@ println(result1, "\n")
 
 tprintln(Panel(
     "Example 2 — delete /prod/ path\nApproval required — production path detected.",
-    title = "on_llm_result", style = "yellow", padding = (0, 2),
+    title = "after_llm_call", style = "yellow", padding = (0, 2),
 ))
 
 session2 = Session(app_name="hitl", user_id="user")
@@ -159,7 +159,7 @@ println(result2, "\n")
 
 tprintln(Panel(
     "Example 3 — email to external domain\nApproval required — recipient is outside $(INTERNAL_DOMAIN).",
-    title = "on_llm_result", style = "magenta", padding = (0, 2),
+    title = "after_llm_call", style = "magenta", padding = (0, 2),
 ))
 
 session3 = Session(app_name="hitl", user_id="user")
@@ -172,7 +172,7 @@ println(result3, "\n")
 
 tprintln(Panel(
     "Example 4 — email to internal domain\nNo approval needed — recipient is @$(INTERNAL_DOMAIN).",
-    title = "on_llm_result", style = "green", padding = (0, 2),
+    title = "after_llm_call", style = "green", padding = (0, 2),
 ))
 
 session4 = Session(app_name="hitl", user_id="user")

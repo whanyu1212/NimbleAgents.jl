@@ -16,7 +16,7 @@ end
     @test agent.name == "TestBot"
     @test agent.instructions == "You are a test assistant."
     @test length(agent.tools) == 2
-    @test agent.model == "gpt-4o-mini"
+    @test agent.model == "gpt-5.4-mini"
     @test agent.max_iterations == 10
     @test isnothing(agent.output_type)
 
@@ -38,15 +38,36 @@ end
     )
     @test agent3.output_type == TestReport
 
+    # dynamic instructions (function)
+    dyn_fn = (session, agent) -> "Hello $(session.user_id)"
+    agent4 = Agent(
+        name         = "DynBot",
+        instructions = dyn_fn,
+    )
+    @test agent4.instructions isa Function
+    @test agent4.instructions === dyn_fn
+
+    # api_kwargs — default empty
+    @test agent.api_kwargs == NamedTuple()
+
+    # api_kwargs — custom
+    agent5 = Agent(
+        name         = "ReasonerBot",
+        instructions = "Think carefully.",
+        api_kwargs   = (; reasoning = Dict("effort" => "high")),
+    )
+    @test agent5.api_kwargs.reasoning == Dict("effort" => "high")
+
     # default retry config
     @test agent.retry isa RetryConfig
-    @test agent.retry.max_retries    == 3
-    @test agent.retry.initial_delay  == 0.5
-    @test agent.retry.max_delay      == 60.0
-    @test agent.retry.multiplier     == 2.0
-    @test agent.retry.jitter         == true
+    @test agent.retry.max_retries       == 3
+    @test agent.retry.initial_delay     == 0.5
+    @test agent.retry.max_delay         == 60.0
+    @test agent.retry.multiplier        == 2.0
+    @test agent.retry.jitter            == true
     @test 429 in agent.retry.retry_on_status
     @test 529 in agent.retry.retry_on_status
+    @test agent.retry.max_parse_retries == 2
 
     # custom retry config
     agent_no_retry = Agent(
@@ -58,8 +79,8 @@ end
 
     # default hooks are all nothing
     @test agent.hooks isa AgentHooks
-    @test isnothing(agent.hooks.on_llm_call)
-    @test isnothing(agent.hooks.on_llm_result)
+    @test isnothing(agent.hooks.before_llm_call)
+    @test isnothing(agent.hooks.after_llm_call)
     @test isnothing(agent.hooks.on_tool_call)
     @test isnothing(agent.hooks.on_tool_result)
     @test isnothing(agent.hooks.on_complete)
@@ -147,24 +168,26 @@ end
     # hooks fire in the right order with the right arguments
     log = String[]
 
+    dummy_msgs = ["system prompt"]
+
     hooks = AgentHooks(
-        on_llm_call    = (ag, iter)            -> push!(log, "llm:$iter"),
-        on_llm_result  = (ag, iter, resp)      -> push!(log, "llm_result:$iter"),
+        before_llm_call = (ag, iter, msgs)     -> (push!(log, "llm:$iter"); msgs),
+        after_llm_call  = (ag, iter, resp)      -> push!(log, "llm_result:$iter"),
         on_tool_call   = (ag, name, args)      -> push!(log, "call:$name"),
         on_tool_result = (ag, name, result)    -> push!(log, "result:$name=$result"),
         on_complete    = (ag, result)          -> push!(log, "done"),
     )
 
-    @test hooks.on_llm_call    isa Function
-    @test hooks.on_llm_result  isa Function
+    @test hooks.before_llm_call isa Function
+    @test hooks.after_llm_call  isa Function
     @test hooks.on_tool_call   isa Function
     @test hooks.on_tool_result isa Function
     @test hooks.on_complete    isa Function
 
     # fire each manually to confirm correct signatures
     dummy_agent = Agent(name="X", instructions="Y")
-    hooks.on_llm_call(dummy_agent, 1)
-    hooks.on_llm_result(dummy_agent, 1, "raw_response")
+    hooks.before_llm_call(dummy_agent, 1, dummy_msgs)
+    hooks.after_llm_call(dummy_agent, 1, "raw_response")
     hooks.on_tool_call(dummy_agent, "add", Dict{Symbol,Any}(:x => 1))
     hooks.on_tool_result(dummy_agent, "add", 42)
     hooks.on_complete(dummy_agent, "final")

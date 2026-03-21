@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NimbleAgents</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
+  <script>
+    // Configure marked before Alpine initialises
+    marked.setOptions({ breaks: true, gfm: true })
+  </script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <style>
     [x-cloak] { display: none !important; }
@@ -13,10 +18,33 @@
       from { opacity: 0; transform: translateY(6px); }
       to   { opacity: 1; transform: translateY(0); }
     }
-    /* Scrollbar styling */
+    /* Markdown prose */
+    .prose h1,.prose h2,.prose h3,.prose h4 { font-weight:600; margin:0.75em 0 0.25em; line-height:1.3; }
+    .prose h1 { font-size:1.2em; } .prose h2 { font-size:1.1em; } .prose h3 { font-size:1em; }
+    .prose p { margin:0.4em 0; }
+    .prose ul,.prose ol { margin:0.4em 0 0.4em 1.25em; }
+    .prose ul { list-style:disc; } .prose ol { list-style:decimal; }
+    .prose li { margin:0.15em 0; }
+    .prose code { background:rgba(99,102,241,0.15); color:#a5b4fc; padding:0.1em 0.35em; border-radius:3px; font-size:0.85em; }
+    .prose pre { background:#0f172a; border:1px solid #1e293b; border-radius:6px; padding:0.75em 1em; overflow-x:auto; margin:0.5em 0; }
+    .prose pre code { background:none; color:#e2e8f0; padding:0; font-size:0.82em; }
+    .prose a { color:#818cf8; text-decoration:underline; }
+    .prose strong { color:#e2e8f0; font-weight:600; }
+    .prose blockquote { border-left:3px solid #4f46e5; padding-left:0.75em; color:#9ca3af; margin:0.5em 0; }
+    .prose table { width:100%; border-collapse:collapse; margin:0.5em 0; font-size:0.85em; }
+    .prose th { background:#1e293b; padding:0.35em 0.6em; text-align:left; border:1px solid #334155; }
+    .prose td { padding:0.3em 0.6em; border:1px solid #1e293b; }
+    .prose hr { border-color:#374151; margin:0.75em 0; }
     .chat-scroll::-webkit-scrollbar { width: 4px; }
     .chat-scroll::-webkit-scrollbar-track { background: transparent; }
     .chat-scroll::-webkit-scrollbar-thumb { background: #374151; border-radius: 2px; }
+    .trace-scroll::-webkit-scrollbar { width: 4px; }
+    .trace-scroll::-webkit-scrollbar-track { background: transparent; }
+    .trace-scroll::-webkit-scrollbar-thumb { background: #374151; border-radius: 2px; }
+    /* slide-in panel */
+    .trace-panel {
+      transition: width 0.25s ease, opacity 0.2s ease;
+    }
   </style>
 </head>
 <body class="bg-gray-950 text-gray-100 h-screen flex flex-col" x-data="app()" x-init="init()">
@@ -40,7 +68,7 @@
       </select>
       <!-- New conversation -->
       <button
-        @click="newConversation()"
+        @click="confirmNewConversation()"
         class="text-xs text-gray-400 hover:text-gray-200 border border-gray-700 hover:border-gray-500 rounded-lg px-3 py-1.5 transition"
       >New chat</button>
       <!-- Session ID badge -->
@@ -48,126 +76,343 @@
         class="text-xs text-gray-600 font-mono"
         x-text="'session: ' + sessionId.slice(0,8) + '...'"
       ></span>
+      <!-- Trace toggle — only visible once there's a session -->
+      <button x-show="sessionId" x-cloak
+        @click="toggleTrace()"
+        :class="traceOpen
+          ? 'bg-indigo-700 text-white border-indigo-600'
+          : 'text-gray-400 hover:text-gray-200 border-gray-700 hover:border-gray-500'"
+        class="text-xs border rounded-lg px-3 py-1.5 transition flex items-center gap-1.5"
+      >
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+        </svg>
+        <span x-text="traceOpen ? 'Hide trace' : 'View trace'"></span>
+        <span x-show="traceLoading" x-cloak class="inline-block w-2 h-2 bg-indigo-400 rounded-full animate-pulse"></span>
+      </button>
     </div>
   </header>
 
-  <!-- Chat area -->
-  <main
-    class="flex-1 overflow-y-auto chat-scroll px-4 py-6 space-y-4"
-    x-ref="chatContainer"
-  >
-    <!-- Empty state -->
-    <div x-show="messages.length === 0" x-cloak
-      class="flex flex-col items-center justify-center h-full text-gray-600 gap-2"
+  <!-- Body: chat + optional trace panel side-by-side -->
+  <div class="flex flex-1 overflow-hidden">
+
+    <!-- ── Chat area ───────────────────────────────────────────────────────── -->
+    <main
+      class="flex-1 overflow-y-auto chat-scroll px-4 py-6 space-y-4"
+      x-ref="chatContainer"
     >
-      <svg class="w-10 h-10 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-          d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
-      </svg>
-      <p class="text-sm">Select an agent and start chatting</p>
-    </div>
+      <!-- Empty state -->
+      <div x-show="messages.length === 0" x-cloak
+        class="flex flex-col items-center justify-center h-full text-gray-600 gap-2"
+      >
+        <svg class="w-10 h-10 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+        </svg>
+        <p class="text-sm">Select an agent and start chatting</p>
+      </div>
 
-    <template x-for="(msg, i) in messages" :key="i">
-      <div class="message-enter flex" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
+      <template x-for="(msg, i) in messages" :key="i">
+        <div class="message-enter flex" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
 
-        <!-- User message -->
-        <div x-show="msg.role === 'user'"
-          class="max-w-xl px-4 py-2.5 rounded-2xl rounded-tr-sm bg-indigo-600 text-white text-sm leading-relaxed"
-          x-text="msg.content"
-        ></div>
-
-        <!-- Assistant message (with optional tool calls) -->
-        <div x-show="msg.role === 'assistant'" class="max-w-2xl w-full space-y-2">
-
-          <!-- Tool call cards -->
-          <template x-for="(tc, j) in (msg.tool_calls || [])" :key="j">
-            <div class="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-xs font-mono">
-              <div class="flex items-center justify-between mb-2">
-                <div class="flex items-center gap-2">
-                  <span class="text-yellow-400">⚡</span>
-                  <span class="text-yellow-300 font-semibold" x-text="tc.name"></span>
-                </div>
-                <button
-                  @click="tc._open = !tc._open"
-                  class="text-gray-500 hover:text-gray-300 text-xs transition"
-                  x-text="tc._open ? '▲ hide' : '▼ args'"
-                ></button>
-              </div>
-              <!-- Args -->
-              <div x-show="tc._open" x-cloak class="mt-1 space-y-1">
-                <template x-for="[k, v] in Object.entries(tc.args || {})" :key="k">
-                  <div class="flex gap-2">
-                    <span class="text-gray-500 w-24 shrink-0" x-text="k + ':'"></span>
-                    <span class="text-gray-300 break-all" x-text="JSON.stringify(v)"></span>
-                  </div>
-                </template>
-              </div>
-              <!-- Result -->
-              <div x-show="tc.result !== undefined" class="mt-2 pt-2 border-t border-gray-700">
-                <span class="text-green-400">↳ </span>
-                <span class="text-gray-300 break-all" x-text="tc.result"></span>
-              </div>
-            </div>
-          </template>
-
-          <!-- Text content -->
-          <div x-show="msg.content"
-            class="bg-gray-800 border border-gray-700 px-4 py-3 rounded-2xl rounded-tl-sm text-sm leading-relaxed text-gray-100 whitespace-pre-wrap"
+          <!-- User message -->
+          <div x-show="msg.role === 'user'"
+            class="max-w-xl px-4 py-2.5 rounded-2xl rounded-tr-sm bg-indigo-600 text-white text-sm leading-relaxed"
             x-text="msg.content"
           ></div>
 
-          <!-- Streaming cursor -->
-          <div x-show="msg.streaming"
-            class="inline-block w-2 h-4 bg-indigo-400 rounded-sm animate-pulse ml-1"
-          ></div>
-        </div>
+          <!-- Assistant message (with optional tool calls) -->
+          <div x-show="msg.role === 'assistant'" class="max-w-2xl w-full space-y-2">
 
-        <!-- HITL approval card -->
-        <div x-show="msg.role === 'interrupt'" class="max-w-2xl w-full">
-          <div class="bg-amber-950 border border-amber-700 rounded-xl px-4 py-4 space-y-3">
-            <div class="flex items-center gap-2">
-              <span class="text-amber-400 text-lg">⚠</span>
-              <span class="text-amber-300 font-semibold text-sm">Approval Required</span>
+            <!-- Tool call cards -->
+            <template x-for="(tc, j) in (msg.tool_calls || [])" :key="j">
+              <div class="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-xs font-mono">
+                <div class="flex items-center justify-between mb-2">
+                  <div class="flex items-center gap-2">
+                    <span class="text-yellow-400">⚡</span>
+                    <span class="text-yellow-300 font-semibold" x-text="tc.name"></span>
+                  </div>
+                  <button
+                    @click="tc._open = !tc._open"
+                    class="text-gray-500 hover:text-gray-300 text-xs transition"
+                    x-text="tc._open ? '▲ hide' : '▼ args'"
+                  ></button>
+                </div>
+                <!-- Args -->
+                <div x-show="tc._open" x-cloak class="mt-1 space-y-1">
+                  <template x-for="[k, v] in Object.entries(tc.args || {})" :key="k">
+                    <div class="flex gap-2">
+                      <span class="text-gray-500 w-24 shrink-0" x-text="k + ':'"></span>
+                      <span class="text-gray-300 break-all" x-text="JSON.stringify(v)"></span>
+                    </div>
+                  </template>
+                </div>
+                <!-- Result -->
+                <div x-show="tc.result !== undefined" class="mt-2 pt-2 border-t border-gray-700">
+                  <span class="text-green-400">↳ </span>
+                  <span class="text-gray-300 break-all" x-text="tc.result"></span>
+                </div>
+              </div>
+            </template>
+
+            <!-- Text content -->
+            <div x-show="msg.content"
+              class="prose bg-gray-800 border border-gray-700 px-4 py-3 rounded-2xl rounded-tl-sm text-sm leading-relaxed text-gray-100"
+              x-html="marked.parse(msg.content || '')"
+            ></div>
+
+            <!-- Streaming cursor -->
+            <div x-show="msg.streaming"
+              class="inline-block w-2 h-4 bg-indigo-400 rounded-sm animate-pulse ml-1"
+            ></div>
+          </div>
+
+          <!-- HITL approval card -->
+          <div x-show="msg.role === 'interrupt'" class="max-w-2xl w-full">
+            <div class="bg-amber-950 border border-amber-700 rounded-xl px-4 py-4 space-y-3">
+              <div class="flex items-center gap-2">
+                <span class="text-amber-400 text-lg">⚠</span>
+                <span class="text-amber-300 font-semibold text-sm">Approval Required</span>
+              </div>
+              <p class="text-amber-100 text-sm whitespace-pre-wrap" x-text="msg.content"></p>
+              <div class="flex flex-wrap gap-2">
+                <template x-for="t in (msg.tools || [])" :key="t">
+                  <span class="bg-amber-900 text-amber-200 text-xs font-mono px-2 py-1 rounded"
+                    x-text="t"></span>
+                </template>
+              </div>
+              <div x-show="msg.pending" class="flex gap-2 pt-1">
+                <button
+                  @click="approve(msg, 'approve')"
+                  class="px-4 py-1.5 bg-green-700 hover:bg-green-600 text-white text-sm rounded-lg transition"
+                >Approve</button>
+                <button
+                  @click="approve(msg, 'reject')"
+                  class="px-4 py-1.5 bg-red-800 hover:bg-red-700 text-white text-sm rounded-lg transition"
+                >Reject</button>
+                <input
+                  x-model="msg._custom"
+                  @keydown.enter="approve(msg, msg._custom)"
+                  placeholder="Custom instruction..."
+                  class="flex-1 bg-gray-800 border border-gray-700 text-gray-200 text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                />
+                <button
+                  @click="approve(msg, msg._custom)"
+                  x-show="msg._custom"
+                  class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition"
+                >Send</button>
+              </div>
+              <div x-show="!msg.pending" class="text-xs text-gray-500 italic">
+                Response sent — agent continuing...
+              </div>
             </div>
-            <p class="text-amber-100 text-sm whitespace-pre-wrap" x-text="msg.content"></p>
-            <!-- Pending tool list -->
-            <div class="flex flex-wrap gap-2">
-              <template x-for="t in (msg.tools || [])" :key="t">
-                <span class="bg-amber-900 text-amber-200 text-xs font-mono px-2 py-1 rounded"
-                  x-text="t"></span>
-              </template>
+          </div>
+
+        </div>
+      </template>
+    </main>
+
+    <!-- ── Trace panel ─────────────────────────────────────────────────────── -->
+    <aside
+      x-show="traceOpen"
+      x-cloak
+      class="trace-panel w-96 shrink-0 border-l border-gray-800 bg-gray-900 flex flex-col overflow-hidden"
+    >
+      <!-- Panel header -->
+      <div class="flex items-center justify-between px-4 py-3 border-b border-gray-800 shrink-0">
+        <span class="text-sm font-semibold text-gray-300 flex items-center gap-2">
+          <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+          </svg>
+          Trace
+        </span>
+        <div class="flex items-center gap-2">
+          <button
+            @click="refreshTrace()"
+            :disabled="traceLoading"
+            class="text-xs text-gray-500 hover:text-gray-300 disabled:opacity-40 transition"
+            title="Refresh trace"
+          >
+            <svg class="w-4 h-4" :class="traceLoading ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+          </button>
+          <button @click="traceOpen = false" class="text-gray-600 hover:text-gray-300 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Error state -->
+      <div x-show="traceError" x-cloak class="px-4 py-4">
+        <div class="bg-red-950 border border-red-800 rounded-lg px-3 py-3 text-xs text-red-300 space-y-1">
+          <div class="font-semibold text-red-400">Failed to load trace</div>
+          <div x-text="traceError" class="break-words font-mono"></div>
+          <div class="text-red-500 pt-1">Check the Julia server logs for details.</div>
+        </div>
+      </div>
+
+      <!-- Empty state -->
+      <div x-show="!traceData && !traceLoading && !traceError" x-cloak
+        class="flex flex-col items-center justify-center flex-1 text-gray-600 gap-2 text-xs"
+      >
+        <svg class="w-8 h-8 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10"/>
+        </svg>
+        <p>No trace data yet</p>
+      </div>
+
+      <!-- Loading spinner -->
+      <div x-show="traceLoading && !traceData" x-cloak
+        class="flex items-center justify-center flex-1 text-gray-600 gap-2 text-xs"
+      >
+        <svg class="w-5 h-5 animate-spin text-indigo-400" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+        </svg>
+        <span>Loading trace...</span>
+      </div>
+
+      <!-- Trace content -->
+      <div x-show="traceData" x-cloak class="flex-1 overflow-y-auto trace-scroll px-4 py-4 space-y-4 text-xs">
+
+        <!-- Aggregate stats -->
+        <div class="bg-gray-800 border border-gray-700 rounded-xl p-3 space-y-1.5">
+          <div class="text-gray-400 font-semibold mb-2 text-xs uppercase tracking-wide">Summary</div>
+          <div class="flex justify-between">
+            <span class="text-gray-500">Turns</span>
+            <span class="text-gray-200 font-mono" x-text="traceData?.turns?.length ?? 0"></span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-500">Agents</span>
+            <span class="text-gray-200 font-mono" x-text="(traceData?.agents ?? []).join(', ')"></span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-500">Duration</span>
+            <span class="text-gray-200 font-mono" x-text="(traceData?.duration ?? 0) + 's'"></span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-500">LLM calls</span>
+            <span class="text-gray-200 font-mono" x-text="traceData?.total_llm_calls ?? 0"></span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-500">Tool calls</span>
+            <span class="text-gray-200 font-mono" x-text="traceData?.total_tool_calls ?? 0"></span>
+          </div>
+          <div class="border-t border-gray-700 pt-1.5 mt-1">
+            <div class="flex justify-between">
+              <span class="text-gray-500">Tokens in</span>
+              <span class="text-blue-300 font-mono" x-text="traceData?.total_input_tokens ?? 0"></span>
             </div>
-            <!-- Approval actions (only show while still pending) -->
-            <div x-show="msg.pending" class="flex gap-2 pt-1">
-              <button
-                @click="approve(msg, 'approve')"
-                class="px-4 py-1.5 bg-green-700 hover:bg-green-600 text-white text-sm rounded-lg transition"
-              >Approve</button>
-              <button
-                @click="approve(msg, 'reject')"
-                class="px-4 py-1.5 bg-red-800 hover:bg-red-700 text-white text-sm rounded-lg transition"
-              >Reject</button>
-              <input
-                x-model="msg._custom"
-                @keydown.enter="approve(msg, msg._custom)"
-                placeholder="Custom instruction..."
-                class="flex-1 bg-gray-800 border border-gray-700 text-gray-200 text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500"
-              />
-              <button
-                @click="approve(msg, msg._custom)"
-                x-show="msg._custom"
-                class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition"
-              >Send</button>
+            <div class="flex justify-between">
+              <span class="text-gray-500">Tokens out</span>
+              <span class="text-green-300 font-mono" x-text="traceData?.total_output_tokens ?? 0"></span>
             </div>
-            <div x-show="!msg.pending" class="text-xs text-gray-500 italic">
-              Response sent — agent continuing...
+            <div class="flex justify-between font-semibold">
+              <span class="text-gray-400">Total tokens</span>
+              <span class="text-gray-100 font-mono" x-text="traceData?.total_tokens ?? 0"></span>
+            </div>
+            <div class="flex justify-between font-semibold" x-show="(traceData?.total_cost ?? 0) > 0">
+              <span class="text-gray-400">Cost</span>
+              <span class="text-yellow-300 font-mono" x-text="'$' + (traceData?.total_cost ?? 0).toFixed(4)"></span>
             </div>
           </div>
         </div>
 
+        <!-- Per-turn cards -->
+        <template x-for="(turn, idx) in (traceData?.turns ?? [])" :key="idx">
+          <div class="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden">
+            <!-- Turn header -->
+            <div class="flex items-center justify-between px-3 py-2 bg-gray-750 border-b border-gray-700 cursor-pointer select-none"
+              style="background: rgba(55,65,81,0.6)"
+              @click="turn._open = !turn._open"
+            >
+              <div class="flex items-center gap-2">
+                <span class="text-indigo-400 font-semibold">Turn <span x-text="idx + 1"></span></span>
+                <span class="text-gray-500" x-text="'— ' + turn.agent"></span>
+              </div>
+              <div class="flex items-center gap-2 text-gray-500">
+                <span x-text="turn.elapsed + 's'"></span>
+                <span x-text="(turn.input_tokens + turn.output_tokens) + ' tok'"></span>
+                <span x-show="(turn.cost ?? 0) > 0" class="text-yellow-400" x-text="'$' + (turn.cost ?? 0).toFixed(4)"></span>
+                <span x-text="turn._open ? '▲' : '▼'"></span>
+              </div>
+            </div>
+
+            <!-- Turn detail -->
+            <div x-show="turn._open !== false" class="px-3 py-3 space-y-2">
+              <!-- Badges row -->
+              <div class="flex flex-wrap gap-1.5">
+                <span class="bg-gray-700 text-gray-300 px-2 py-0.5 rounded text-xs font-mono"
+                  x-text="turn.llm_calls + ' llm'"></span>
+                <span class="bg-gray-700 text-gray-300 px-2 py-0.5 rounded text-xs font-mono"
+                  x-text="(turn.tool_calls?.length ?? 0) + ' tool'"></span>
+                <span class="bg-blue-900/60 text-blue-300 px-2 py-0.5 rounded text-xs font-mono"
+                  x-text="turn.input_tokens + ' in'"></span>
+                <span class="bg-green-900/60 text-green-300 px-2 py-0.5 rounded text-xs font-mono"
+                  x-text="turn.output_tokens + ' out'"></span>
+              </div>
+
+              <!-- Input -->
+              <div>
+                <div class="text-gray-500 mb-0.5">Input</div>
+                <div class="text-gray-300 bg-gray-900/50 rounded px-2 py-1.5 break-words leading-relaxed"
+                  x-text="turn.input"></div>
+              </div>
+
+              <!-- Output -->
+              <div x-show="turn.output">
+                <div class="text-gray-500 mb-0.5">Output</div>
+                <div class="text-gray-300 bg-gray-900/50 rounded px-2 py-1.5 break-words leading-relaxed"
+                  x-text="turn.output"></div>
+              </div>
+
+              <!-- Tool calls -->
+              <template x-for="(tc, j) in (turn.tool_calls ?? [])" :key="j">
+                <div class="border border-gray-700 rounded-lg overflow-hidden">
+                  <div class="flex items-center gap-2 px-2 py-1.5 bg-yellow-950/40 border-b border-gray-700">
+                    <span :class="tc.error ? 'text-red-400' : 'text-yellow-400'"
+                      x-text="tc.error ? '✗' : '✓'"></span>
+                    <span class="text-yellow-300 font-semibold font-mono" x-text="tc.name"></span>
+                    <span x-show="tc.error" class="text-red-400 text-xs" x-text="tc.error"></span>
+                  </div>
+                  <!-- Args -->
+                  <div class="px-2 py-1.5 font-mono space-y-0.5">
+                    <template x-for="[k, v] in Object.entries(tc.args || {})" :key="k">
+                      <div class="flex gap-1.5">
+                        <span class="text-gray-500 shrink-0" x-text="k + ':'"></span>
+                        <span class="text-gray-400 break-all" x-text="JSON.stringify(v)"></span>
+                      </div>
+                    </template>
+                    <div x-show="tc.result !== undefined && tc.result !== ''" class="pt-1 border-t border-gray-700/50">
+                      <span class="text-green-400">↳ </span>
+                      <span class="text-gray-300 break-all" x-text="tc.result"></span>
+                    </div>
+                  </div>
+                </div>
+              </template>
+
+            </div>
+          </div>
+        </template>
+
+        <!-- Refresh hint -->
+        <p class="text-center text-gray-700 text-xs pb-2">
+          Trace reflects session state at load time.
+          <button @click="refreshTrace()" class="text-indigo-500 hover:text-indigo-400 underline">Refresh</button>
+          after each turn.
+        </p>
+
       </div>
-    </template>
-  </main>
+    </aside>
+
+  </div><!-- end body row -->
 
   <!-- Input bar -->
   <footer class="shrink-0 px-4 py-3 bg-gray-900 border-t border-gray-800">
@@ -175,12 +420,14 @@
       <textarea
         x-model="input"
         @keydown.enter.prevent="!$event.shiftKey && send()"
-        placeholder="Type a message... (Enter to send, Shift+Enter for newline)"
+        @input="autoResize($event.target)"
+        placeholder="Type a message… (Enter to send, Shift+Enter for new line)"
         rows="1"
         :disabled="running || !selectedAgent"
         class="flex-1 bg-gray-800 border border-gray-700 text-gray-100 text-sm rounded-xl px-4 py-3
                focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none
                disabled:opacity-40 disabled:cursor-not-allowed placeholder-gray-600"
+        style="max-height: 200px; overflow-y: auto;"
       ></textarea>
       <button
         @click="send()"
@@ -205,6 +452,12 @@
   </footer>
 
   <script>
+  // ── Logging helpers ──────────────────────────────────────────────────────────
+  const log  = (...a) => console.log('[NimbleAgents]', ...a)
+  const logW = (...a) => console.warn('[NimbleAgents]', ...a)
+  const logE = (...a) => console.error('[NimbleAgents]', ...a)
+
+  // ── App ─────────────────────────────────────────────────────────────────────
   function app() {
     return {
       agents:        [],
@@ -214,21 +467,53 @@
       input:         '',
       running:       false,
       currentRunId:  null,
-      currentMsg:    null,   // assistant message being streamed into
-      pendingTools:  {},     // tool_call name -> card ref waiting for result
+      currentMsg:    null,
+      pendingTools:  {},
+
+      // trace state
+      traceOpen:    false,
+      traceLoading: false,
+      traceData:    null,
+      traceError:   null,
 
       async init() {
-        const res  = await fetch('/agents')
-        this.agents = await res.json()
-        if (this.agents.length === 1) this.selectedAgent = this.agents[0].id
+        log('init — fetching agent list')
+        try {
+          const res = await fetch('/agents')
+          if (!res.ok) { logE('GET /agents failed', res.status); return }
+          this.agents = await res.json()
+          log('agents loaded:', this.agents.map(a => a.name))
+          if (this.agents.length === 1) this.selectedAgent = this.agents[0].id
+        } catch (e) {
+          logE('init error:', e)
+        }
+      },
+
+      confirmNewConversation() {
+        if (this.messages.length > 0 && !confirm('Start a new conversation? The current chat will be cleared.')) return
+        this.newConversation()
       },
 
       newConversation() {
+        log('new conversation')
         this.sessionId    = null
         this.messages     = []
         this.currentRunId = null
         this.currentMsg   = null
         this.running      = false
+        this.traceOpen    = false
+        this.traceData    = null
+        this.traceError   = null
+        // Reset textarea height
+        this.$nextTick(() => {
+          const ta = document.querySelector('textarea')
+          if (ta) { ta.style.height = 'auto' }
+        })
+      },
+
+      autoResize(el) {
+        el.style.height = 'auto'
+        el.style.height = Math.min(el.scrollHeight, 200) + 'px'
       },
 
       scrollBottom() {
@@ -244,46 +529,68 @@
 
         this.input   = ''
         this.running = true
+        this.$nextTick(() => {
+          const ta = document.querySelector('textarea')
+          if (ta) { ta.style.height = 'auto' }
+        })
+        log('send — agent:', this.selectedAgent, '| session:', this.sessionId, '| input:', text.slice(0, 60))
 
-        // Add user bubble
         this.messages.push({ role: 'user', content: text })
         this.scrollBottom()
 
-        // POST /chat
-        const res = await fetch('/chat', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({
-            agent_id:   this.selectedAgent,
-            session_id: this.sessionId,
-            input:      text,
-          }),
-        })
+        let res
+        try {
+          res = await fetch('/chat', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({
+              agent_id:   this.selectedAgent,
+              session_id: this.sessionId,
+              input:      text,
+            }),
+          })
+        } catch (e) {
+          logE('POST /chat network error:', e)
+          this.messages.push({ role: 'assistant', content: '⚠ Network error: ' + e.message })
+          this.running = false
+          return
+        }
 
         if (!res.ok) {
-          this.messages.push({ role: 'assistant', content: '⚠ Server error: ' + res.status })
+          const body = await res.text().catch(() => '')
+          logE('POST /chat failed', res.status, body)
+          this.messages.push({ role: 'assistant', content: '⚠ Server error ' + res.status + (body ? ': ' + body : '') })
           this.running = false
           return
         }
 
         const { run_id, session_id } = await res.json()
+        log('run started — run_id:', run_id, '| session_id:', session_id)
         this.currentRunId = run_id
         this.sessionId    = session_id
 
-        // Create streaming assistant message
         this.currentMsg = { role: 'assistant', content: '', tool_calls: [], streaming: true }
         this.messages.push(this.currentMsg)
         this.scrollBottom()
 
-        // Subscribe to SSE stream
         this.listenStream(run_id)
       },
 
       listenStream(run_id) {
+        log('SSE — connecting to /runs/' + run_id + '/stream')
         const es = new EventSource(`/runs/${run_id}/stream`)
 
+        es.onopen = () => log('SSE — connection open for run:', run_id)
+
         es.onmessage = (e) => {
-          const ev = JSON.parse(e.data)
+          let ev
+          try {
+            ev = JSON.parse(e.data)
+          } catch (err) {
+            logE('SSE — JSON parse error:', err, '| raw:', e.data)
+            return
+          }
+          log('SSE event:', ev.type, ev.data)
 
           if (ev.type === 'token') {
             this.currentMsg.content += ev.data
@@ -291,61 +598,73 @@
           }
 
           else if (ev.type === 'tool_call') {
+            log('tool_call:', ev.data.name, ev.data.args)
             const card = { name: ev.data.name, args: ev.data.args, result: undefined, _open: true }
             this.currentMsg.tool_calls.push(card)
-            // track by name so tool_result can fill it in
             this.pendingTools[ev.data.name] = card
             this.scrollBottom()
           }
 
           else if (ev.type === 'tool_result') {
+            log('tool_result:', ev.data.name, '->', ev.data.result)
             const card = this.pendingTools[ev.data.name]
-            if (card) card.result = ev.data.result
+            if (card) {
+              card.result = ev.data.result
+            } else {
+              logW('tool_result — no pending card for:', ev.data.name)
+            }
             delete this.pendingTools[ev.data.name]
           }
 
           else if (ev.type === 'interrupt') {
-            // Finish the current streaming message (may be empty if no text before interrupt)
+            log('interrupt received:', ev.data)
             this.currentMsg.streaming = false
-
-            // Push an interrupt card
             const intMsg = {
-              role:     'interrupt',
-              content:  ev.data.message,
-              tools:    ev.data.tools || [],
-              pending:  true,
-              run_id:   run_id,
-              _custom:  '',
+              role:    'interrupt',
+              content: ev.data.message,
+              tools:   ev.data.tools || [],
+              pending: true,
+              run_id:  run_id,
+              _custom: '',
             }
             this.messages.push(intMsg)
             this.scrollBottom()
-
-            // Prepare a new assistant message for after approval
             this.currentMsg = { role: 'assistant', content: '', tool_calls: [], streaming: true }
             this.messages.push(this.currentMsg)
           }
 
           else if (ev.type === 'done') {
+            log('run done — result length:', (ev.data.result || '').length)
             this.currentMsg.streaming = false
-            // If we got a 'done' but content is empty (return_direct), fill from result
             if (!this.currentMsg.content && ev.data.result) {
               this.currentMsg.content = ev.data.result
             }
             this.running = false
             es.close()
             this.scrollBottom()
+            // Auto-refresh trace if panel is open
+            if (this.traceOpen) {
+              log('run done — auto-refreshing trace')
+              this.refreshTrace()
+            }
           }
 
           else if (ev.type === 'error') {
+            logE('run error event:', ev.data.message)
             this.currentMsg.streaming = false
             this.currentMsg.content   = '⚠ ' + ev.data.message
             this.running = false
             es.close()
             this.scrollBottom()
           }
+
+          else {
+            logW('SSE — unknown event type:', ev.type)
+          }
         }
 
-        es.onerror = () => {
+        es.onerror = (e) => {
+          logE('SSE — connection error for run:', run_id, e)
           if (this.currentMsg) this.currentMsg.streaming = false
           this.running = false
           es.close()
@@ -353,12 +672,74 @@
       },
 
       async approve(intMsg, response) {
+        log('approve — run:', intMsg.run_id, '| response:', response)
         intMsg.pending = false
-        await fetch(`/runs/${intMsg.run_id}/approve`, {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ response }),
-        })
+        try {
+          const res = await fetch(`/runs/${intMsg.run_id}/approve`, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ response }),
+          })
+          if (!res.ok) logE('approve failed', res.status, await res.text().catch(() => ''))
+          else log('approve — server acknowledged')
+        } catch (e) {
+          logE('approve — network error:', e)
+        }
+      },
+
+      // ── Trace ──────────────────────────────────────────────────────────────
+
+      async toggleTrace() {
+        if (this.traceOpen) {
+          this.traceOpen = false
+          log('trace panel — closed')
+          return
+        }
+        log('trace panel — opening')
+        this.traceOpen  = true
+        this.traceError = null
+        await this.refreshTrace()
+      },
+
+      async refreshTrace() {
+        if (!this.sessionId) {
+          logW('refreshTrace — no session id, skipping')
+          return
+        }
+        log('refreshTrace — fetching /sessions/' + this.sessionId + '/trace')
+        this.traceLoading = true
+        this.traceError   = null
+        try {
+          const res = await fetch(`/sessions/${this.sessionId}/trace`)
+          log('refreshTrace — HTTP', res.status)
+          if (!res.ok) {
+            const body = await res.text().catch(() => '')
+            logE('refreshTrace — server error', res.status, body)
+            this.traceError = `HTTP ${res.status}: ${body || 'unknown error'}`
+            this.traceLoading = false
+            return
+          }
+          let data
+          try {
+            data = await res.json()
+          } catch (e) {
+            logE('refreshTrace — JSON parse error:', e)
+            this.traceError = 'Failed to parse trace JSON: ' + e.message
+            this.traceLoading = false
+            return
+          }
+          log('refreshTrace — ok, turns:', data.turns?.length,
+              'tokens:', data.total_tokens, 'duration:', data.duration + 's')
+          // Default each turn to open
+          ;(data.turns || []).forEach(t => { t._open = true })
+          this.traceData    = data
+          this.traceError   = null
+        } catch (e) {
+          logE('refreshTrace — network error:', e)
+          this.traceError = 'Network error: ' + e.message
+        } finally {
+          this.traceLoading = false
+        }
       },
     }
   }

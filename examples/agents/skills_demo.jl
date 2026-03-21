@@ -1,17 +1,21 @@
-# examples/skills_demo.jl
+# examples/agents/skills_demo.jl
 #
 # Demonstrates the NimbleAgents Skills system — filesystem-based capability
 # packages that agents load on demand (progressive disclosure).
 #
+# Skill packages live alongside this file in examples/agents/skills/:
+#   - julia-expert/  — Julia idioms, performance, type system, ecosystem
+#   - code-reviewer/ — structured code review across correctness, perf, readability, security
+#
 # Run:
-#   julia --project=. examples/skills_demo.jl
+#   julia --project examples/agents/skills_demo.jl
 
 using DotEnv
 DotEnv.load!()
 
 using NimbleAgents
 
-SKILLS_DIR = joinpath(@__DIR__, "skills")
+SKILLS_DIR = joinpath(@__DIR__, "skills")  # examples/agents/skills/
 
 # ── Agent with skills attached via skill_dirs ──────────────────────────────────
 
@@ -22,7 +26,7 @@ SKILLS_DIR = joinpath(@__DIR__, "skills")
 agent = Agent(
     name        = "DevAssistant",
     instructions = "You are a helpful software development assistant.",
-    model       = "gpt-4o-mini",
+    model       = "gpt-5.4-nano-2026-03-17",
     skill_dirs  = [SKILLS_DIR],
 )
 
@@ -79,15 +83,15 @@ println("-" ^ 60)
 
 # You can also attach skills directly rather than via directory scan
 julia_skill = Skill(
-    name        = "julia-expert",
-    description = "Deep Julia language expertise. Use for Julia-specific questions.",
-    path        = joinpath(SKILLS_DIR, "julia-expert"),
+    "julia-expert",
+    "Deep Julia language expertise. Use for Julia-specific questions.",
+    joinpath(SKILLS_DIR, "julia-expert"),
 )
 
 focused_agent = Agent(
     name         = "JuliaBot",
     instructions = "You are a Julia programming specialist.",
-    model        = "gpt-4o-mini",
+    model        = "gpt-5.4-nano-2026-03-17",
     skills       = [julia_skill],
 )
 

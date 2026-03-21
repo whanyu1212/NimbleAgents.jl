@@ -28,7 +28,7 @@ coding_agent = Agent(
     Always show relevant file contents or search results in your response.
     """,
     tools = [read_file_tool, list_dir_tool, glob_tool, grep_tool, find_files_tool],
-    model = "gpt-4o-mini",
+    model = "gpt-5.4-nano-2026-03-17",
 )
 
 result1 = run!(coding_agent,
@@ -53,7 +53,7 @@ editor_agent = Agent(
     Confirm what you did after each operation.
     """,
     tools = [read_file_tool, write_file_tool, edit_file_tool],
-    model = "gpt-4o-mini",
+    model = "gpt-5.4-nano-2026-03-17",
 )
 
 result2 = run!(editor_agent,
@@ -79,7 +79,7 @@ shell_agent = Agent(
     Prefer safe, read-only commands unless explicitly asked to modify things.
     """,
     tools = [bash_tool, read_file_tool],
-    model = "gpt-4o-mini",
+    model = "gpt-5.4-nano-2026-03-17",
     hooks = AgentHooks(
         # Gate all bash commands — require approval before executing
         should_interrupt = (name, args) -> name == "bash",
@@ -114,7 +114,7 @@ http_agent = Agent(
     a concise summary of the content.
     """,
     tools = [http_get_tool],
-    model = "gpt-4o-mini",
+    model = "gpt-5.4-nano-2026-03-17",
 )
 
 result4 = run!(http_agent,

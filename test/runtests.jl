@@ -3,6 +3,7 @@ Mocking.activate()
 
 using NimbleAgents
 using Test
+using Aqua
 
 # Tools must be defined at module scope (not inside @testset blocks) so that
 # Julia does not mangle argument names in closure-wrapped code.
@@ -25,11 +26,66 @@ end
     uppercase(y)
 end
 
+# Fixtures for test_parallel_tools.jl
+@tool function par_add(x::Int, y::Int)
+    "Add two integers with a small delay."
+    sleep(0.05)
+    x + y
+end
+
+@tool function par_single(x::Int)
+    "Double a number."
+    x * 2
+end
+
+@tool function par_seq_a(x::Int)
+    "Tool A."
+    x * 10
+end
+
+@tool function par_seq_b(x::Int)
+    "Tool B."
+    x * 20
+end
+
+@tool function par_good(x::Int)
+    "Works fine."
+    x * 10
+end
+
+@tool function par_bad(x::Int)
+    "Always fails."
+    error("boom")
+end
+
+@tool function par_hook_a(x::Int)
+    "Tool A."
+    x
+end
+
+@tool function par_hook_b(x::Int)
+    "Tool B."
+    x
+end
+
+# Fixtures for test_eval.jl
+@tool function ev_add(x::Int, y::Int)
+    "Add two numbers."
+    x + y
+end
+
 function timed_include(path)
     t0 = time()
     include(path)
     dt = round(time() - t0; digits=2)
     println("  ⏱  $(path) — $(dt)s")
+end
+
+@testset "Aqua" begin
+    Aqua.test_all(NimbleAgents;
+        stale_deps  = (ignore = [:Test, :DotEnv, :Term],),
+        deps_compat = (ignore = [:Test],),
+    )
 end
 
 @testset "NimbleAgents.jl" begin
@@ -41,9 +97,20 @@ end
     timed_include("unit/test_context.jl")
     timed_include("unit/test_return_direct.jl")
     timed_include("unit/test_cli_tools.jl")
+    timed_include("unit/test_external_agent.jl")
     timed_include("unit/test_skills.jl")
     timed_include("unit/test_artifacts.jl")
     timed_include("unit/test_builtins.jl")
     timed_include("unit/test_mcp.jl")
     timed_include("unit/test_run.jl")
+    timed_include("unit/test_guardrails.jl")
+    timed_include("unit/test_tracer.jl")
+    timed_include("unit/test_eval.jl")
+    timed_include("unit/test_rate_limit.jl")
+    timed_include("unit/test_parallel_tools.jl")
+    timed_include("unit/test_sqlite_store.jl")
+    timed_include("unit/test_memory.jl")
+    timed_include("unit/test_sqlite_memory.jl")
+    timed_include("unit/test_gemini.jl")
+    timed_include("unit/test_repl.jl")
 end

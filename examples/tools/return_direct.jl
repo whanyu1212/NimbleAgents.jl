@@ -56,7 +56,7 @@ faq_agent = Agent(
     topics (refund, shipping, password). Use search_web for anything else.
     """,
     tools = [lookup_faq_tool, search_web_tool],
-    model = "gpt-4o-mini",
+    model = "gpt-5.4-nano-2026-03-17",
 )
 
 result1 = run!(faq_agent, "How long do refunds take?"; verbose=false)
@@ -90,14 +90,14 @@ agent_normal = Agent(
     name         = "PriceBot-Normal",
     instructions = "You answer product pricing questions.",
     tools        = [get_price_normal_tool],
-    model        = "gpt-4o-mini",
+    model        = "gpt-5.4-nano-2026-03-17",
 )
 
 agent_direct = Agent(
     name         = "PriceBot-Direct",
     instructions = "You answer product pricing questions.",
     tools        = [get_price_direct_tool],
-    model        = "gpt-4o-mini",
+    model        = "gpt-5.4-nano-2026-03-17",
 )
 
 r_normal = run!(agent_normal, "How much does the Widget cost?"; verbose=false)

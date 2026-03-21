@@ -20,3 +20,4 @@ include("shell.jl")         # bash_tool
 include("http.jl")          # http_get_tool, http_post_tool
 include("repl.jl")          # eval_julia_tool
 include("save_artifact.jl") # save_artifact_tool
+include("memory_tools.jl") # save_memory_tool, recall_memory_tool

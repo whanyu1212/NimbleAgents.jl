@@ -48,3 +48,55 @@ end
     # ── dispatch_tool raises on unknown tool ──────────────────────────────
     @test_throws Exception dispatch_tool(tool_map, "nonexistent", Dict{Symbol, Any}())
 end
+
+@testset "Tool input validation" begin
+    # ── Valid args pass through ────────────────────────────────────────────
+    @test isnothing(NimbleAgents._validate_tool_args(
+        add_tool, Dict{Symbol,Any}(:x => 1, :y => 2)))
+
+    @test isnothing(NimbleAgents._validate_tool_args(
+        greet_tool, Dict{Symbol,Any}(:name => "Alice")))
+
+    # ── Missing required arg ───────────────────────────────────────────────
+    err = NimbleAgents._validate_tool_args(add_tool, Dict{Symbol,Any}(:x => 1))
+    @test err isa String
+    @test occursin("Missing", err)
+    @test occursin("y", err)
+
+    # ── Wrong type ────────────────────────────────────────────────────────
+    err2 = NimbleAgents._validate_tool_args(add_tool, Dict{Symbol,Any}(:x => "hello", :y => 2))
+    @test err2 isa String
+    @test occursin("expected integer", err2)
+    @test occursin("x", err2)
+
+    # ── Wrong type for string arg ─────────────────────────────────────────
+    err3 = NimbleAgents._validate_tool_args(greet_tool, Dict{Symbol,Any}(:name => 42))
+    @test err3 isa String
+    @test occursin("expected string", err3)
+
+    # ── dispatch_tool returns ToolValidationError string (not a throw) ────
+    result = dispatch_tool(
+        build_tool_map([add_tool]),
+        "add",
+        Dict{Symbol,Any}(:x => "bad", :y => 2),
+    )
+    @test result isa String
+    @test occursin("ToolValidationError", result)
+
+    # ── Missing required arg via dispatch ─────────────────────────────────
+    result2 = dispatch_tool(
+        build_tool_map([add_tool]),
+        "add",
+        Dict{Symbol,Any}(:x => 1),
+    )
+    @test result2 isa String
+    @test occursin("ToolValidationError", result2)
+
+    # ── Valid dispatch still works ────────────────────────────────────────
+    result3 = dispatch_tool(
+        build_tool_map([add_tool]),
+        "add",
+        Dict{Symbol,Any}(:x => 3, :y => 4),
+    )
+    @test result3 == 7
+end

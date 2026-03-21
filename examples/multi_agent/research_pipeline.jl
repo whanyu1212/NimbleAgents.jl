@@ -78,8 +78,8 @@ end
 
 function make_hooks(label::String, color::String)
     AgentHooks(
-        on_llm_call  = (ag, iter) ->
-            tprintln("{dim}  [$(label)] LLM call #$(iter){/dim}"),
+        before_llm_call = (ag, iter, msgs) ->
+            (tprintln("{dim}  [$(label)] LLM call #$(iter){/dim}"); msgs),
         on_tool_call = (ag, name, args) ->
             tprintln("  {$(color)}[$(label)]{/$(color)} → {bold}$(name){/bold}: $(get(args, :query, get(args, :task, "…")))"),
         on_complete  = (ag, result) ->

@@ -48,7 +48,7 @@ agent = Agent(
     and delete files. Always complete the user's request.
     """,
     tools = [send_email, delete_file, read_file],
-    model = "gpt-4o-mini",
+    model = "gpt-5.4-nano-2026-03-17",
     hooks = AgentHooks(
         should_interrupt = (name, args) -> name in DANGEROUS_TOOLS
     ),

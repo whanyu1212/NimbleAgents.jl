@@ -20,7 +20,7 @@ agent = Agent(
     Always show the code you ran and its output.
     """,
     tools = [eval_julia_tool],
-    model = "gpt-4o-mini",
+    model = "gpt-5.4-nano-2026-03-17",
 )
 
 # ── Scenario 1: Stateful computation ──────────────────────────────────────────

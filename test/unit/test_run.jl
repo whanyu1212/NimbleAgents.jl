@@ -44,6 +44,87 @@ end
     end
 end
 
+# ── Dynamic instructions ─────────────────────────────────────────────────────
+
+@testset "run! — dynamic instructions resolved from function" begin
+    captured_system = Ref("")
+
+    patch = @patch function PT.aitools(conv; kwargs...)
+        # Capture the system prompt that was passed to the LLM
+        captured_system[] = conv[1].content
+        push!(conv, _ai_msg("Got it!"))
+        conv
+    end
+
+    apply(patch) do
+        dyn = (session, agent) -> "You are helping $(session.user_id). Agent: $(agent.name)."
+        agent   = Agent(name="DynBot", instructions=dyn)
+        session = Session(app_name="App", user_id="alice")
+
+        result = run!(agent, "Hi"; session, verbose=false)
+        @test result == "Got it!"
+        @test captured_system[] == "You are helping alice. Agent: DynBot."
+    end
+end
+
+@testset "run! — dynamic instructions with nothing session" begin
+    captured_system = Ref("")
+
+    patch = @patch function PT.aitools(conv; kwargs...)
+        captured_system[] = conv[1].content
+        push!(conv, _ai_msg("OK"))
+        conv
+    end
+
+    apply(patch) do
+        dyn   = (session, agent) -> "No session: $(isnothing(session))"
+        agent = Agent(name="DynBot", instructions=dyn)
+
+        result = run!(agent, "Hi"; verbose=false)
+        @test result == "OK"
+        @test captured_system[] == "No session: true"
+    end
+end
+
+# ── api_kwargs passthrough ────────────────────────────────────────────────────
+
+@testset "run! — api_kwargs passed through to LLM call" begin
+    captured_kwargs = Dict{Symbol,Any}()
+
+    patch = @patch function PT.aitools(conv; kwargs...)
+        merge!(captured_kwargs, Dict(kwargs))
+        push!(conv, _ai_msg("Done"))
+        conv
+    end
+
+    apply(patch) do
+        agent = Agent(
+            name         = "ReasonBot",
+            instructions = "Think hard.",
+            api_kwargs   = (; reasoning = Dict("effort" => "high"), temperature = 0.5),
+        )
+
+        result = run!(agent, "Solve this"; verbose=false)
+        @test result == "Done"
+        @test captured_kwargs[:reasoning] == Dict("effort" => "high")
+        @test captured_kwargs[:temperature] == 0.5
+    end
+end
+
+@testset "run! — empty api_kwargs does not break calls" begin
+    patch = @patch function PT.aitools(conv; kwargs...)
+        push!(conv, _ai_msg("OK"))
+        conv
+    end
+
+    apply(patch) do
+        agent = Agent(name="Bot", instructions="test")
+        @test agent.api_kwargs == NamedTuple()
+        result = run!(agent, "Hi"; verbose=false)
+        @test result == "OK"
+    end
+end
+
 # ── Session history updated ───────────────────────────────────────────────────
 
 @testset "run! — session history appended" begin
@@ -329,6 +410,95 @@ end
 
         # Session should now be in the store
         @test !isnothing(load(store, session.id))
+    end
+end
+
+# ── Structured output parse retry ────────────────────────────────────────────
+
+struct ParseRetryReport
+    summary::String
+    score::Int
+end
+
+@testset "run! — structured output succeeds on first attempt" begin
+    aitools_patch = @patch function PT.aitools(conv; kwargs...)
+        push!(conv, _ai_msg("done"))
+        conv
+    end
+    extract_patch = @patch function PT.aiextract(conv; return_type, kwargs...)
+        PT.DataMessage(; content=ParseRetryReport("ok", 10), tokens=(5, 5), elapsed=0.1)
+    end
+
+    apply([aitools_patch, extract_patch]) do
+        agent  = Agent(name="Bot", instructions="test", output_type=ParseRetryReport)
+        result = run!(agent, "go"; verbose=false)
+        @test result isa ParseRetryReport
+        @test result.score == 10
+    end
+end
+
+@testset "run! — structured output retries on parse failure then succeeds" begin
+    attempt = Ref(0)
+    aitools_patch = @patch function PT.aitools(conv; kwargs...)
+        push!(conv, _ai_msg("done"))
+        conv
+    end
+    extract_patch = @patch function PT.aiextract(conv; return_type, kwargs...)
+        attempt[] += 1
+        if attempt[] < 2
+            # First attempt: return nothing (parse failure)
+            PT.DataMessage(; content=nothing, tokens=(5, 5), elapsed=0.1)
+        else
+            # Second attempt: return correct type
+            PT.DataMessage(; content=ParseRetryReport("recovered", 99), tokens=(5, 5), elapsed=0.1)
+        end
+    end
+
+    apply([aitools_patch, extract_patch]) do
+        agent  = Agent(name="Bot", instructions="test", output_type=ParseRetryReport,
+                       retry=RetryConfig(max_parse_retries=2))
+        result = redirect_stderr(devnull) do
+            run!(agent, "go"; verbose=false)
+        end
+        @test result isa ParseRetryReport
+        @test result.score == 99
+        @test attempt[] == 2
+    end
+end
+
+@testset "run! — structured output errors after exhausting parse retries" begin
+    aitools_patch = @patch function PT.aitools(conv; kwargs...)
+        push!(conv, _ai_msg("done"))
+        conv
+    end
+    extract_patch = @patch function PT.aiextract(conv; return_type, kwargs...)
+        PT.DataMessage(; content=nothing, tokens=(5, 5), elapsed=0.1)
+    end
+
+    apply([aitools_patch, extract_patch]) do
+        agent = Agent(name="Bot", instructions="test", output_type=ParseRetryReport,
+                      retry=RetryConfig(max_parse_retries=1))
+        @test_throws ErrorException redirect_stderr(devnull) do
+            run!(agent, "go"; verbose=false)
+        end
+    end
+end
+
+@testset "run! — parse retries disabled with max_parse_retries=0" begin
+    aitools_patch = @patch function PT.aitools(conv; kwargs...)
+        push!(conv, _ai_msg("done"))
+        conv
+    end
+    extract_patch = @patch function PT.aiextract(conv; return_type, kwargs...)
+        PT.DataMessage(; content=nothing, tokens=(5, 5), elapsed=0.1)
+    end
+
+    apply([aitools_patch, extract_patch]) do
+        agent = Agent(name="Bot", instructions="test", output_type=ParseRetryReport,
+                      retry=RetryConfig(max_parse_retries=0))
+        @test_throws ErrorException redirect_stderr(devnull) do
+            run!(agent, "go"; verbose=false)
+        end
     end
 end
 

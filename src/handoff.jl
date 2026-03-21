@@ -1,6 +1,73 @@
 ###############################################################################
-# handoff.jl — Multi-agent primitives: agent_as_tool and handoff
+# handoff.jl — Multi-agent primitives: agent_as_tool, handoff, loop_pipeline!
 ###############################################################################
+
+import PromptingTools as PT
+
+# ──────────────────────────────────────────────────────────────────────────────
+# HandoffFilter — history transformation on handoff
+# ──────────────────────────────────────────────────────────────────────────────
+
+"""
+    HandoffFilter
+
+Controls how conversation history is transformed when handing off to the next
+agent. Pass a `HandoffFilter` to `handoff_tool` or `run_pipeline!` to filter
+the session history before the receiving agent sees it.
+
+# Built-in filters (symbols)
+- `:all`          — pass full history unchanged (default)
+- `:none`         — clear history; receiving agent starts fresh
+- `:strip_tools`  — remove all tool-call and tool-result messages
+- `:last_n`       — keep only the last N messages (use `HandoffFilter(:last_n, 5)`)
+
+# Custom filter (function)
+Pass a function `(history::Vector{PT.AbstractMessage}) -> Vector{PT.AbstractMessage}`
+for full control over what the receiving agent sees.
+
+# Examples
+```julia
+# Strip tool messages on handoff
+handoff_tool(billing; history_filter = HandoffFilter(:strip_tools))
+
+# Keep only last 3 messages
+handoff_tool(billing; history_filter = HandoffFilter(:last_n, 3))
+
+# Custom function
+handoff_tool(billing; history_filter = HandoffFilter(msgs -> filter(m -> m isa PT.UserMessage, msgs)))
+```
+"""
+struct HandoffFilter
+    kind ::Symbol
+    n    ::Int
+    func ::Union{Function, Nothing}
+end
+
+HandoffFilter() = HandoffFilter(:all, 0, nothing)
+HandoffFilter(kind::Symbol) = HandoffFilter(kind, 0, nothing)
+HandoffFilter(kind::Symbol, n::Int) = HandoffFilter(kind, n, nothing)
+HandoffFilter(f::Function) = HandoffFilter(:custom, 0, f)
+
+function _apply_handoff_filter(filter::HandoffFilter, history::Vector{<:PT.AbstractMessage})
+    kind = filter.kind
+    kind == :all && return history
+
+    if kind == :none
+        return PT.AbstractMessage[]
+    elseif kind == :strip_tools
+        return PT.AbstractMessage[
+            m for m in history
+            if !(m isa PT.ToolMessage || m isa PT.AIToolRequest)
+        ]
+    elseif kind == :last_n
+        n = max(filter.n, 0)
+        return n >= length(history) ? history : history[end-n+1:end]
+    elseif kind == :custom && !isnothing(filter.func)
+        return filter.func(history)
+    else
+        return history
+    end
+end
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Handoff
@@ -17,35 +84,50 @@ trigger the transfer.
 - `target::Agent`: The agent to hand off to.
 - `message::String`: The message to pass to the target agent (defaults to the
   current user input if empty).
+- `history_filter::HandoffFilter`: How to transform conversation history on handoff.
 
 The orchestrator loop in `run_pipeline!` detects `Handoff` results and
 re-runs with the new agent automatically.
 """
 struct Handoff
-    target ::Agent
-    message::String
+    target         ::Agent
+    message        ::String
+    history_filter ::HandoffFilter
 end
 
+# Backward-compatible 2-arg constructor
+Handoff(target::Agent, message::String) = Handoff(target, message, HandoffFilter())
+
 """
-    handoff_tool(target; name, description) -> Tool
+    handoff_tool(target; name, description, history_filter) -> Tool
 
 Create a `Tool` that, when called by an agent, signals a handoff to `target`.
 The LLM passes a `message` argument containing what to forward to the next agent.
 
+# Arguments
+- `target::Agent`: The agent to hand off to.
+- `name::String`: Tool name (default: `"handoff_to_\$(target.name)"`).
+- `description::String`: Tool description.
+- `history_filter::HandoffFilter`: How to transform conversation history before
+  the receiving agent sees it. Default: `HandoffFilter()` (pass full history).
+
 # Example
 ```julia
-billing_agent = Agent(name="Billing", instructions="Handle billing questions.", ...)
+billing_agent = Agent(name="Billing", instructions="Handle billing questions.")
 support_agent = Agent(
     name         = "Support",
     instructions = "Triage customer requests.",
-    tools        = [handoff_tool(billing_agent)],
+    tools        = [
+        handoff_tool(billing_agent; history_filter=HandoffFilter(:strip_tools)),
+    ],
 )
 ```
 """
 function handoff_tool(
-    target     ::Agent;
-    name       ::String = "handoff_to_$(target.name)",
-    description::String = "Transfer the conversation to the $(target.name) agent.",
+    target          ::Agent;
+    name            ::String        = "handoff_to_$(target.name)",
+    description     ::String        = "Transfer the conversation to the $(target.name) agent.",
+    history_filter  ::HandoffFilter = HandoffFilter(),
 )
     params = Dict{String,Any}(
         "type"       => "object",
@@ -62,7 +144,7 @@ function handoff_tool(
         name        = name,
         description = description,
         parameters  = params,
-        callable    = (message::String) -> Handoff(target, message),
+        callable    = (message::String) -> Handoff(target, message, history_filter),
     )
 end
 
@@ -174,9 +256,85 @@ function run_pipeline!(
 
         verbose && println("[run_pipeline!] handoff: $(current_agent.name) → $(result.target.name)")
 
+        # Apply history filter before handing off
+        if !isnothing(session) && result.history_filter.kind != :all
+            session.history = _apply_handoff_filter(result.history_filter, session.history)
+        end
+
         current_agent = result.target
         current_input = isempty(result.message) ? current_input : result.message
     end
+end
+
+# ──────────────────────────────────────────────────────────────────────────────
+# loop_pipeline! — round-robin agent loop with termination condition
+# ──────────────────────────────────────────────────────────────────────────────
+
+"""
+    loop_pipeline!(agents, input; stop_when, max_rounds, session, verbose) -> Any
+
+Run `agents` in round-robin order, feeding each agent's output as the next
+agent's input, until `stop_when` returns `true` or `max_rounds` is reached.
+
+Each "round" consists of one pass through all agents in order. After every
+individual agent run, `stop_when(agent, result)` is checked — if it returns
+`true`, the loop ends immediately and that result is returned.
+
+# Arguments
+- `agents::Vector{Agent}`: Agents to cycle through in order.
+- `input::String`: The initial user message.
+- `stop_when`: A function `(agent, result) -> Bool` that signals termination.
+  Default: always `false` (loop runs until `max_rounds`).
+- `max_rounds::Int`: Safety cap on the number of full rounds (default `5`).
+- `session`: Optional shared `Session` across all agents.
+- `verbose::Bool`: Print round/agent transitions (default `true`).
+
+# Example
+```julia
+coder    = Agent(name="Coder",    instructions="Write code based on the task.")
+reviewer = Agent(name="Reviewer", instructions="Review code. Say APPROVED if good.")
+
+result = loop_pipeline!(
+    [coder, reviewer],
+    "Write a fibonacci function";
+    max_rounds = 5,
+    stop_when  = (agent, result) -> occursin("APPROVED", string(result)),
+    session    = Session(),
+)
+```
+"""
+function loop_pipeline!(
+    agents      ::Vector{Agent},
+    input       ::String;
+    stop_when            = (agent, result) -> false,
+    max_rounds  ::Int    = 5,
+    session     ::Union{Session, Nothing} = nothing,
+    verbose     ::Bool   = true,
+)
+    isempty(agents) && error("loop_pipeline!: agents list must not be empty")
+
+    current_input = input
+
+    for round in 1:max_rounds
+        verbose && println("[loop_pipeline!] round $round/$max_rounds")
+
+        for agent in agents
+            result = run!(agent, current_input;
+                          session = session,
+                          verbose = verbose)
+
+            if stop_when(agent, result)
+                verbose && println("[loop_pipeline!] stop_when triggered by $(agent.name) in round $round")
+                return result
+            end
+
+            current_input = string(result)
+        end
+    end
+
+    verbose && println(stderr, "[loop_pipeline!] reached max_rounds ($max_rounds); returning last result.")
+    # Return the result of the last agent in the last round
+    return current_input
 end
 
 # ──────────────────────────────────────────────────────────────────────────────
