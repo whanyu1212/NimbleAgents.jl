@@ -93,6 +93,96 @@ list(store; app_name="MyApp", user_id="alice")  # both
 delete!(store, session.id)
 ```
 
+### SQLiteSessionStore
+
+Persist sessions in a single SQLite database file:
+
+```julia
+store = SQLiteSessionStore("sessions.db")
+save!(store, session)
+
+# Later — restore from disk
+loaded = load(store, session.id)
+
+# Clean up
+close!(store)
+```
+
+SQLiteSessionStore supports the same `list`, `delete!`, and filtering APIs as JSONSessionStore.
+
+## Web UI (Experimental)
+
+NimbleAgents includes a built-in web interface for interacting with agents in the browser. It supports real-time token streaming, tool call visualization, human-in-the-loop approval flows, and session trace inspection.
+
+### Quick Start
+
+```julia
+using NimbleAgents
+
+agent = Agent(
+    name         = "MyBot",
+    instructions = "You are a helpful assistant.",
+    tools        = [search_web_tool, fetch_webpage_tool],
+)
+
+# Start the server (multiple threads required)
+serve([agent]; port=8080)
+```
+
+Then open `http://localhost:8080` in your browser.
+
+!!! warning "Requires multiple threads"
+    The server spawns agent runs in background threads. Start Julia with at least 2 threads:
+    ```
+    julia --project -t 4 your_script.jl
+    ```
+
+### Multiple Agents
+
+Pass multiple agents and switch between them in the UI:
+
+```julia
+serve([chat_agent, research_agent, code_agent]; port=8080)
+```
+
+Each agent is registered by name and appears as a selectable option in the web interface.
+
+### Session Persistence
+
+By default, sessions live in memory and are lost when the server stops. Pass a store for persistence:
+
+```julia
+# Persist across restarts
+serve([agent]; port=8080, store=JSONSessionStore("./sessions"))
+
+# Or use SQLite
+serve([agent]; port=8080, store=SQLiteSessionStore("sessions.db"))
+```
+
+### Features
+
+- **Token streaming** — responses appear token-by-token via Server-Sent Events
+- **Tool call display** — see which tools the agent calls and their results in real-time
+- **Human-in-the-loop** — when `should_interrupt` triggers, the UI shows an approval dialog
+- **Session traces** — inspect token usage, cost, and timing for each turn
+- **Markdown rendering** — agent responses are rendered as formatted markdown
+
+### Architecture
+
+The server exposes a REST + SSE API:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | Serves the web UI |
+| `/agents` | GET | Lists registered agents |
+| `/chat` | POST | Starts an agent run, returns `run_id` + `session_id` |
+| `/runs/:id/stream` | GET | SSE stream of tokens, tool calls, and events |
+| `/runs/:id/approve` | POST | Approve/deny an interrupted tool call |
+| `/sessions/:id` | GET | Fetch session event history |
+| `/sessions/:id/trace` | GET | Fetch aggregated trace data |
+
+See [`examples/web/web_ui.jl`](https://github.com/whanyu1212/NimbleAgents.jl/blob/develop/examples/web/web_ui.jl) for a full working example with multiple agents and real web search.
+
 ## Artifacts
 
 An [`Artifact`](@ref) is a named, typed output produced by an agent — files, plots, data exports, reports.

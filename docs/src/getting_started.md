@@ -92,9 +92,13 @@ report = run!(agent, "Weather in Tokyo: 22C, sunny")
 
 ## Next Steps
 
-- [Agents](guide/agents.md) — agent configuration, hooks, retry, and structured output
+- [Agents](guide/agents.md) — agent configuration, hooks, retry, structured output, and cost tracking
 - [Tools](guide/tools.md) — defining tools, CLI tools, and built-in tools
-- [Sessions & Artifacts](guide/sessions.md) — session persistence and artifact tracking
+- [Sessions & Artifacts](guide/sessions.md) — session persistence, artifact tracking, and web UI
+- [Multi-Agent Patterns](guide/multi_agent.md) — orchestration, routing, fan-out, loops, and handoff filtering
+- [Guardrails](guide/guardrails.md) — input/output validation and content filtering
 - [MCP](guide/mcp.md) — connecting to MCP servers
 - [Skills](guide/skills.md) — filesystem-based capability packages
+- [Tracer](guide/tracer.md) — token usage, cost, and timing analysis
+- [Examples](examples.md) — runnable examples covering all major features
 - [Reference](reference.md) — full API reference

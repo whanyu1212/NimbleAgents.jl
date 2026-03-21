@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitepress'
+import { withMermaid } from 'vitepress-plugin-mermaid'
 
-export default defineConfig({
+export default withMermaid(defineConfig({
   base: 'REPLACE_ME_DOCUMENTER_VITEPRESS',
   title: 'REPLACE_ME_DOCUMENTER_VITEPRESS',
   description: 'A simple, lightweight framework for building AI agents in pure Julia',
@@ -35,10 +36,14 @@ export default defineConfig({
           { text: 'Agents', link: '/guide/agents' },
           { text: 'Tools', link: '/guide/tools' },
           { text: 'Sessions & Artifacts', link: '/guide/sessions' },
+          { text: 'Multi-Agent Patterns', link: '/guide/multi_agent' },
+          { text: 'Guardrails', link: '/guide/guardrails' },
           { text: 'MCP', link: '/guide/mcp' },
           { text: 'Skills', link: '/guide/skills' },
+          { text: 'Tracer', link: '/guide/tracer' },
         ],
       },
+      { text: 'Examples', link: '/examples' },
       { text: 'Reference', link: '/reference' },
     ],
     sidebar: [
@@ -51,10 +56,14 @@ export default defineConfig({
           { text: 'Agents', link: '/guide/agents' },
           { text: 'Tools', link: '/guide/tools' },
           { text: 'Sessions & Artifacts', link: '/guide/sessions' },
+          { text: 'Multi-Agent Patterns', link: '/guide/multi_agent' },
+          { text: 'Guardrails', link: '/guide/guardrails' },
           { text: 'MCP', link: '/guide/mcp' },
           { text: 'Skills', link: '/guide/skills' },
+          { text: 'Tracer', link: '/guide/tracer' },
         ],
       },
+      { text: 'Examples', link: '/examples' },
       { text: 'Reference', link: '/reference' },
     ],
     editLink: 'REPLACE_ME_DOCUMENTER_VITEPRESS',
@@ -67,4 +76,5 @@ export default defineConfig({
       copyright: `© Copyright ${new Date().getUTCFullYear()} NimbleAgents contributors.`,
     },
   },
-})
+  mermaid: {},
+}))

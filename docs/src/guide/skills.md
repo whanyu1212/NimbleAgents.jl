@@ -83,3 +83,43 @@ This lazy-loading approach keeps context lean (only metadata in the prompt) whil
 ```julia
 skill = Skill("code-reviewer", "Reviews Julia code for issues.", "./skills/code-reviewer")
 ```
+
+`Skill` takes positional arguments: `name`, `description`, `path`.
+
+## Runnable Example
+
+```julia
+# examples/agents/skills_demo.jl
+using DotEnv; DotEnv.load!()
+using NimbleAgents
+
+SKILLS_DIR = "examples/agents/skills"
+
+# Discover from a directory — only metadata goes into the prompt
+agent = Agent(
+    name         = "DevAssistant",
+    instructions = "You are a helpful software development assistant.",
+    skill_dirs   = [SKILLS_DIR],
+)
+
+run!(agent, "What are the most important things to check when optimising Julia code?")
+
+# Or attach a specific skill directly
+julia_skill = Skill(
+    "julia-expert",
+    "Deep Julia language expertise.",
+    joinpath(SKILLS_DIR, "julia-expert"),
+)
+
+focused_agent = Agent(
+    name         = "JuliaBot",
+    instructions = "You are a Julia programming specialist.",
+    skills       = [julia_skill],
+)
+
+run!(focused_agent, "What is the difference between == and === in Julia?")
+```
+
+```bash
+julia --project examples/agents/skills_demo.jl
+```

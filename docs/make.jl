@@ -22,9 +22,13 @@ makedocs(;
             "Agents" => "guide/agents.md",
             "Tools" => "guide/tools.md",
             "Sessions & Artifacts" => "guide/sessions.md",
+            "Multi-Agent Patterns" => "guide/multi_agent.md",
+            "Guardrails" => "guide/guardrails.md",
             "MCP" => "guide/mcp.md",
             "Skills" => "guide/skills.md",
+            "Tracer" => "guide/tracer.md",
         ],
+        "Examples" => "examples.md",
         "Reference" => "reference.md",
     ],
 )

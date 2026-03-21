@@ -46,6 +46,38 @@ When a tool has `return_direct=true`, its result becomes the agent's final outpu
 end
 ```
 
+### Example: FAQ bot with return_direct
+
+```julia
+# examples/tools/return_direct.jl
+const FAQ = Dict(
+    "refund"   => "Refunds are processed within 5–7 business days.",
+    "shipping" => "Standard shipping takes 3–5 business days. Express is 1–2.",
+    "password" => "Click 'Forgot password' on the login page to reset.",
+)
+
+@tool return_direct=true function lookup_faq(topic::String)
+    "Look up a frequently asked question by topic keyword."
+    get(FAQ, lowercase(topic), "No FAQ found for topic: $(topic)")
+end
+
+agent = Agent(
+    name         = "SupportBot",
+    instructions = "You are a customer support assistant. Use lookup_faq for support topics.",
+    tools        = [lookup_faq_tool],
+)
+
+# The tool result is returned directly — no LLM call to rephrase it
+run!(agent, "How long do refunds take?")
+# → "Refunds are processed within 5–7 business days."
+```
+
+Run it with:
+
+```bash
+julia --project examples/tools/return_direct.jl
+```
+
 ## Built-in Tools
 
 NimbleAgents includes a library of built-in tools:
@@ -93,6 +125,43 @@ grep_cli = CLITool(
 
 The `{placeholder}` tokens in `command` are replaced with the LLM-provided argument values at runtime. The command is executed as a subprocess.
 
+### Example: Developer tools agent
+
+```julia
+# examples/tools/cli_tools_demo.jl
+grep_tool = CLITool(
+    name        = "grep",
+    description = "Search for a pattern in files or directories.",
+    command     = ["grep", "-rn", "{pattern}", "{path}"],
+    args        = [
+        "pattern" => CLIArg(String, "Regex pattern to search for."),
+        "path"    => CLIArg(String, "File or directory path to search in."),
+    ],
+)
+
+git_log_tool = CLITool(
+    name        = "git_log",
+    description = "Show recent git commits as a compact one-line log.",
+    command     = ["git", "log", "--oneline", "-{n}"],
+    args        = ["n" => CLIArg(Int, "Number of recent commits to show.")],
+)
+
+agent = Agent(
+    name         = "DevBot",
+    instructions = "You are a developer assistant with access to shell tools.",
+    tools        = [grep_tool, git_log_tool],
+)
+
+run!(agent, "Search for all uses of 'CLITool' in the src/ directory.")
+run!(agent, "Show me the last 5 git commits.")
+```
+
+Run it with:
+
+```bash
+julia --project examples/tools/cli_tools_demo.jl
+```
+
 ### CLITool Options
 
 | Field | Type | Default | Description |
@@ -125,3 +194,19 @@ tool_map = build_tool_map([add_tool, greet_tool])
 result = dispatch_tool(tool_map, "add", Dict{Symbol,Any}(:x => 10, :y => 32))
 # result == 42
 ```
+
+## A Note on Provider-Native Tools
+
+Some LLM providers offer built-in server-side tools — for example, Google Search in Gemini, web search in Claude, or code interpreter in OpenAI. These are not standard function-calling tools; they require provider-specific API parameters and return results in different formats.
+
+NimbleAgents (via [PromptingTools.jl](https://github.com/svilupp/PromptingTools.jl)) currently supports standard function-calling tools across all providers. Provider-native tools are not yet supported — this is an area of active development in the Julia LLM ecosystem and something we'd like to add in the future.
+
+In the meantime, NimbleAgents includes built-in tools that cover similar ground:
+
+| Provider-native tool | NimbleAgents equivalent |
+|---|---|
+| Gemini Google Search | `search_web` (via Tavily API) + `fetch_webpage` |
+| Claude web search | `search_web` + `fetch_webpage` |
+| OpenAI code interpreter | `eval_julia_tool` (persistent Julia sandbox) |
+
+These work across all providers since they use standard function calling.
