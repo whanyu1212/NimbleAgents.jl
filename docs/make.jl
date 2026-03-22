@@ -34,7 +34,5 @@ makedocs(;
 )
 
 DocumenterVitepress.deploydocs(;
-    repo="github.com/whanyu1212/NimbleAgents.jl",
-    push_preview=true,
-    devbranch="develop",
+    repo="github.com/whanyu1212/NimbleAgents.jl", push_preview=true, devbranch="develop"
 )
