@@ -1,5 +1,8 @@
 # NimbleAgents.jl
 
+[![Dev Docs](https://img.shields.io/badge/docs-dev-blue.svg)](https://whanyu1212.github.io/NimbleAgents.jl/dev/)
+[![CI](https://github.com/whanyu1212/NimbleAgents.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/whanyu1212/NimbleAgents.jl/actions/workflows/CI.yml)
+
 A simple, lightweight framework for building AI agents in pure Julia.
 
 Built on [PromptingTools.jl](https://github.com/svilupp/PromptingTools.jl). Supports OpenAI, Anthropic, Google Gemini, and any OpenAI-compatible endpoint.
@@ -47,6 +50,9 @@ The `@tool` macro generates a JSON schema from the function signature automatica
 | **Streaming** | Real-time token streaming via `on_token` callback |
 | **Hooks** | Lifecycle callbacks for logging, HITL approval flows, and message filtering |
 | **Cost tracking** | Built-in pricing for 40+ models; per-turn cost via `Trace` |
+| **Prompt caching** | `cache=:all` for Anthropic cache breakpoints; automatic for OpenAI; cache tokens tracked in traces |
+| **Tool output trimming** | Per-tool or agent-level character limits with head+tail preservation |
+| **Session TTL** | `cleanup!(store; max_age=3600)` to expire old sessions across all backends |
 | **MCP support** | Connect to Model Context Protocol servers (stdio + HTTP) |
 | **Skills** | Filesystem-based instruction packages loaded on demand |
 | **Rate limiting** | Token-bucket limiter per model or global default |
@@ -84,4 +90,4 @@ summaries = fan_out(researcher, topics; parallel=true, session)
 
 ## Documentation
 
-[whanyu1212.github.io/NimbleAgents.jl](https://whanyu1212.github.io/NimbleAgents.jl/)
+[whanyu1212.github.io/NimbleAgents.jl/dev/](https://whanyu1212.github.io/NimbleAgents.jl/dev/)
