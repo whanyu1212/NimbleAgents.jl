@@ -27,10 +27,10 @@ Token-bucket rate limiter. Allows up to `rate` requests per second,
 with a burst capacity equal to `rate`.
 """
 mutable struct RateLimiter
-    rate     ::Float64       # tokens per second
-    tokens   ::Float64       # current available tokens
+    rate::Float64       # tokens per second
+    tokens::Float64       # current available tokens
     last_time::Float64       # last refill timestamp (seconds since epoch)
-    lock     ::ReentrantLock
+    lock::ReentrantLock
 end
 
 function RateLimiter(rate::Real)
@@ -60,7 +60,7 @@ function acquire!(limiter::RateLimiter)
                 false
             end
         end
-        taken && return
+        taken && return nothing
 
         # Wait a short interval before retrying. Sleep time is proportional
         # to how long until the next token refills.
@@ -73,7 +73,7 @@ end
 
 # ── Global registry ──────────────────────────────────────────────────────────
 
-const _rate_limiters = Dict{String, RateLimiter}()
+const _rate_limiters = Dict{String,RateLimiter}()
 const _rate_limiters_lock = ReentrantLock()
 
 """
@@ -135,6 +135,6 @@ function _acquire_rate_limit!(model::String)
     limiter = lock(_rate_limiters_lock) do
         get(_rate_limiters, model, get(_rate_limiters, "__default__", nothing))
     end
-    isnothing(limiter) && return
+    isnothing(limiter) && return nothing
     acquire!(limiter)
 end

@@ -21,17 +21,15 @@ A record of one tool call made during a `run!` turn.
 - `timestamp::Float64`: `time()` when the tool was called.
 """
 struct ToolEvent
-    name     ::String
-    args     ::Dict{Symbol, Any}
-    result   ::Any
-    error    ::Union{String, Nothing}
+    name::String
+    args::Dict{Symbol,Any}
+    result::Any
+    error::Union{String,Nothing}
     timestamp::Float64
 end
 
-ToolEvent(name, args, result) =
-    ToolEvent(name, args, result, nothing, time())
-ToolEvent(name, args; error::String) =
-    ToolEvent(name, args, nothing, error, time())
+ToolEvent(name, args, result) = ToolEvent(name, args, result, nothing, time())
+ToolEvent(name, args; error::String) = ToolEvent(name, args, nothing, error, time())
 
 # ──────────────────────────────────────────────────────────────────────────────
 # TurnEvent — record of one complete run! call
@@ -56,21 +54,22 @@ A record of one complete `run!` invocation — one "turn" in the conversation.
 - `timestamp::Float64`: `time()` when `run!` was called.
 """
 mutable struct TurnEvent
-    agent        ::String
-    model        ::String
-    input        ::String
-    output       ::Any
-    tool_calls   ::Vector{ToolEvent}
-    llm_calls    ::Int
-    input_tokens ::Int
+    agent::String
+    model::String
+    input::String
+    output::Any
+    tool_calls::Vector{ToolEvent}
+    llm_calls::Int
+    input_tokens::Int
     output_tokens::Int
-    cost         ::Float64
-    elapsed      ::Float64
-    timestamp    ::Float64
+    cost::Float64
+    elapsed::Float64
+    timestamp::Float64
 end
 
-TurnEvent(agent::String, model::String, input::String) =
+function TurnEvent(agent::String, model::String, input::String)
     TurnEvent(agent, model, input, nothing, ToolEvent[], 0, 0, 0, 0.0, 0.0, time())
+end
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Session
@@ -111,27 +110,36 @@ session.events[1]         # TurnEvent for the first run! call
 ```
 """
 mutable struct Session
-    id          ::String
-    app_name    ::String
-    user_id     ::String
-    history     ::Vector{PT.AbstractMessage}
-    state       ::Dict{String, Any}
-    events      ::Vector{TurnEvent}
-    artifacts   ::Vector{Any}   # Vector{Artifact} — typed after artifacts.jl loads
-    created_at  ::Float64
-    lock        ::ReentrantLock
+    id::String
+    app_name::String
+    user_id::String
+    history::Vector{PT.AbstractMessage}
+    state::Dict{String,Any}
+    events::Vector{TurnEvent}
+    artifacts::Vector{Any}   # Vector{Artifact} — typed after artifacts.jl loads
+    created_at::Float64
+    lock::ReentrantLock
 end
 
 function Session(;
-    id       ::String = string(Base.UUID(rand(UInt128))),
-    app_name ::String = "NimbleAgents",
-    user_id  ::String = "default",
+    id::String=string(Base.UUID(rand(UInt128))),
+    app_name::String="NimbleAgents",
+    user_id::String="default",
 )
-    Session(id, app_name, user_id, PT.AbstractMessage[], Dict{String,Any}(),
-            TurnEvent[], Any[], time(), ReentrantLock())
+    Session(
+        id,
+        app_name,
+        user_id,
+        PT.AbstractMessage[],
+        Dict{String,Any}(),
+        TurnEvent[],
+        Any[],
+        time(),
+        ReentrantLock(),
+    )
 end
 
-Base.length(s::Session)  = length(s.history)
+Base.length(s::Session) = length(s.history)
 Base.isempty(s::Session) = isempty(s.history)
 
 """
@@ -169,7 +177,7 @@ end
 # model. Built-in defaults cover popular models at list price as of March 2026.
 # Prices sourced from official provider pricing pages.
 
-const _model_pricing = Dict{String, @NamedTuple{input::Float64, output::Float64}}()
+const _model_pricing = Dict{String,@NamedTuple{input::Float64,output::Float64}}()
 const _model_pricing_lock = ReentrantLock()
 
 """
@@ -300,10 +308,10 @@ _register_default_pricing!()
 # Accumulate token usage from a PT response message into a TurnEvent.
 function _accumulate_usage!(turn::TurnEvent, msg)
     usage = msg.usage
-    isnothing(usage) && return
-    in_tok  = something(usage.input_tokens,  0)
+    isnothing(usage) && return nothing
+    in_tok = something(usage.input_tokens, 0)
     out_tok = something(usage.output_tokens, 0)
-    turn.input_tokens  += in_tok
+    turn.input_tokens += in_tok
     turn.output_tokens += out_tok
     turn.cost += _compute_cost(turn.model, in_tok, out_tok)
 end
@@ -328,7 +336,9 @@ function _estimate_tokens(msg::PT.AbstractMessage)::Int
 end
 
 # Total estimated tokens across the full history.
-_history_tokens(session::Session) = sum(_estimate_tokens(m) for m in session.history; init=0)
+function _history_tokens(session::Session)
+    sum(_estimate_tokens(m) for m in session.history; init=0)
+end
 
 """
     compact!(session, agent) -> Bool
@@ -361,15 +371,16 @@ function compact!(session::Session, agent)
     # Not enough messages to split — nothing useful to summarise
     n <= cfg.keep_last && return false
 
-    old_msgs  = history[1:(n - cfg.keep_last)]
+    old_msgs = history[1:(n - cfg.keep_last)]
     keep_msgs = history[(n - cfg.keep_last + 1):end]
 
-    println("[$(agent.name)] context compaction triggered: estimated_tokens=$(total) threshold=$(threshold) old=$(length(old_msgs)) kept=$(length(keep_msgs))")
+    println(
+        "[$(agent.name)] context compaction triggered: estimated_tokens=$(total) threshold=$(threshold) old=$(length(old_msgs)) kept=$(length(keep_msgs))",
+    )
 
     # Build a plain-text transcript of the older messages for the summariser
     transcript = join(
-        ["$(nameof(typeof(m))): $(something(m.content, ""))" for m in old_msgs],
-        "\n",
+        ["$(nameof(typeof(m))): $(something(m.content, ""))" for m in old_msgs], "\n"
     )
 
     summary_model = something(cfg.summary_model, agent.model)
@@ -384,15 +395,15 @@ $(transcript)
 
 Write the summary in third person, past tense. Be thorough — omitting important
 details defeats the purpose.""";
-        model   = summary_model,
-        verbose = false,
+        model=summary_model,
+        verbose=false,
     )
 
     summary_text = something(summary_msg.content, "")
 
     # Replace history: summary placeholder + recent verbatim messages
     summary_placeholder = PT.UserMessage(
-        "[Conversation Summary — $(length(old_msgs)) messages compressed]\n\n$(summary_text)"
+        "[Conversation Summary — $(length(old_msgs)) messages compressed]\n\n$(summary_text)",
     )
 
     lock(session.lock) do
@@ -401,6 +412,8 @@ details defeats the purpose.""";
         append!(session.history, keep_msgs)
     end
 
-    println("[$(agent.name)] compaction complete: new_history_length=$(length(session.history))")
+    println(
+        "[$(agent.name)] compaction complete: new_history_length=$(length(session.history))"
+    )
     return true
 end

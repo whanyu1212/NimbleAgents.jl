@@ -16,18 +16,18 @@ using NimbleAgents
 # ── Pattern 1: Rule-based Block ───────────────────────────────────────────────
 # Reject inputs that look like they contain a Social Security Number.
 
-no_ssn = Guardrail(
-    name  = "no_ssn",
-    on    = :input,
-    check = input -> occursin(r"\d{3}-\d{2}-\d{4}", input) ?
-                     Block("I'm not able to process inputs containing SSNs.") :
-                     Pass(),
+no_ssn = Guardrail(;
+    name="no_ssn",
+    on=:input,
+    check=input -> if occursin(r"\d{3}-\d{2}-\d{4}", input)
+        Block("I'm not able to process inputs containing SSNs.")
+    else
+        Pass()
+    end,
 )
 
-agent = Agent(
-    name         = "SecureBot",
-    instructions = "You are a helpful assistant.",
-    guardrails   = [no_ssn],
+agent = Agent(;
+    name="SecureBot", instructions="You are a helpful assistant.", guardrails=[no_ssn]
 )
 
 println("=== Pattern 1: Block on SSN ===")
@@ -43,16 +43,14 @@ println("Response: ", result2)
 # ── Pattern 2: Modify — sanitise input ───────────────────────────────────────
 # Strip HTML tags from user input before passing to the agent.
 
-strip_html = Guardrail(
-    name  = "strip_html",
-    on    = :input,
-    check = input -> Modify(replace(input, r"<[^>]+>" => "")),
+strip_html = Guardrail(;
+    name="strip_html", on=:input, check=input -> Modify(replace(input, r"<[^>]+>" => ""))
 )
 
-agent2 = Agent(
-    name         = "CleanBot",
-    instructions = "You are a helpful assistant. Repeat back what the user said.",
-    guardrails   = [strip_html],
+agent2 = Agent(;
+    name="CleanBot",
+    instructions="You are a helpful assistant. Repeat back what the user said.",
+    guardrails=[strip_html],
 )
 
 println("=== Pattern 2: Modify — strip HTML ===")
@@ -63,26 +61,27 @@ println("Response: ", result3)
 # ── Pattern 3: Chaining multiple guardrails ───────────────────────────────────
 # Guardrails run in order. Each sees the output of the previous Modify.
 
-no_profanity = Guardrail(
-    name  = "no_profanity",
-    on    = :input,
-    check = input -> occursin(r"badword", lowercase(input)) ?
-                     Block("Input contains inappropriate language.") :
-                     Pass(),
+no_profanity = Guardrail(;
+    name="no_profanity",
+    on=:input,
+    check=input -> if occursin(r"badword", lowercase(input))
+        Block("Input contains inappropriate language.")
+    else
+        Pass()
+    end,
 )
 
-length_check = Guardrail(
-    name  = "length_check",
-    on    = :input,
-    check = input -> length(input) > 500 ?
-                     Block("Input is too long (max 500 characters).") :
-                     Pass(),
+length_check = Guardrail(;
+    name="length_check",
+    on=:input,
+    check=input ->
+        length(input) > 500 ? Block("Input is too long (max 500 characters).") : Pass(),
 )
 
-agent3 = Agent(
-    name         = "FilterBot",
-    instructions = "You are a helpful assistant.",
-    guardrails   = [no_profanity, length_check],
+agent3 = Agent(;
+    name="FilterBot",
+    instructions="You are a helpful assistant.",
+    guardrails=[no_profanity, length_check],
 )
 
 println("=== Pattern 3: Chained guardrails ===")

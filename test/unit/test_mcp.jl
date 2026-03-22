@@ -9,32 +9,32 @@
 
 @testset "MCPServer construction" begin
     s = MCPServer(command="uvx", args=["--from", "mcpdoc", "mcpdoc"])
-    @test s.command     == "uvx"
-    @test s.args        == ["--from", "mcpdoc", "mcpdoc"]
-    @test s.timeout     == 60.0
+    @test s.command == "uvx"
+    @test s.args == ["--from", "mcpdoc", "mcpdoc"]
+    @test s.timeout == 60.0
     @test s.cache_tools == true
-    @test s.env         == Dict{String,String}()
+    @test s.env == Dict{String,String}()
 
     s2 = MCPServer(
-        command     = "python",
-        args        = ["server.py"],
-        timeout     = 10.0,
-        cache_tools = false,
-        env         = Dict("FOO" => "bar"),
+        command="python",
+        args=["server.py"],
+        timeout=10.0,
+        cache_tools=false,
+        env=Dict("FOO" => "bar"),
     )
-    @test s2.timeout     == 10.0
+    @test s2.timeout == 10.0
     @test s2.cache_tools == false
-    @test s2.env["FOO"]  == "bar"
+    @test s2.env["FOO"] == "bar"
 end
 
 @testset "MCPClient construction" begin
     server = MCPServer(command="echo", args=String[])
     client = MCPClient(server)
-    @test client.server    === server
+    @test client.server === server
     @test isnothing(client.proc)
     @test isnothing(client.proc_stdin)
     @test isnothing(client.proc_stdout)
-    @test client._req_id   == 0
+    @test client._req_id == 0
     @test isnothing(client._tools)
     @test !NimbleAgents._connected(client)
 end
@@ -95,17 +95,17 @@ end
 function _make_stub_server()::MCPServer
     script = tempname() * ".jl"
     write(script, _STUB_SERVER_SCRIPT)
-    MCPServer(
-        command = joinpath(Sys.BINDIR, "julia"),
-        args    = ["--project=$(Base.active_project())", script],
-        timeout = 30.0,
+    MCPServer(;
+        command=joinpath(Sys.BINDIR, "julia"),
+        args=["--project=$(Base.active_project())", script],
+        timeout=30.0,
     )
 end
 
 # ── Shared stub client (spawned once for the connected tests) ─────────────────
 # Avoids spawning a new Julia subprocess for every @testset.
 
-const _stub_client = Ref{Union{MCPClient, Nothing}}(nothing)
+const _stub_client = Ref{Union{MCPClient,Nothing}}(nothing)
 
 function _get_stub_client()::MCPClient
     if isnothing(_stub_client[]) || !NimbleAgents._connected(_stub_client[])
@@ -140,8 +140,8 @@ end
 
 @testset "tool callable — echo_tool invocation" begin
     client = _get_stub_client()
-    tools  = list_tools(client)
-    echo   = tools[1]
+    tools = list_tools(client)
+    echo = tools[1]
     result = echo.callable(Dict{Symbol,Any}(:message => "hello MCP"))
     @test result == "echo: hello MCP"
 end
@@ -163,10 +163,10 @@ isnothing(_stub_client[]) || close!(_stub_client[])
     script = tempname() * ".jl"
     write(script, _STUB_SERVER_SCRIPT)
     server = MCPServer(
-        command     = joinpath(Sys.BINDIR, "julia"),
-        args        = ["--project=$(Base.active_project())", script],
-        timeout     = 30.0,
-        cache_tools = false,
+        command=joinpath(Sys.BINDIR, "julia"),
+        args=["--project=$(Base.active_project())", script],
+        timeout=30.0,
+        cache_tools=false,
     )
     client = connect!(MCPClient(server))
     tools1 = list_tools(client)
@@ -179,20 +179,16 @@ end
 
 @testset "Agent with mcp_servers — tools discovered" begin
     server = _make_stub_server()
-    agent  = Agent(
-        name         = "MCPAgent",
-        instructions = "test",
-        mcp_servers  = [server],
-    )
+    agent = Agent(name="MCPAgent", instructions="test", mcp_servers=[server])
     @test length(agent.mcp_servers) == 1
     @test agent.mcp_servers[1] === server
 end
 
 @testset "_connect_mcp_servers — bad server does not crash" begin
     bad = MCPServer(
-        command = "false",   # exits immediately with code 1
-        args    = String[],
-        timeout = 2.0,
+        command="false",   # exits immediately with code 1
+        args=String[],
+        timeout=2.0,
     )
     tools, clients = NimbleAgents._connect_mcp_servers([bad])
     @test isempty(tools)

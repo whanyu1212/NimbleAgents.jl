@@ -10,34 +10,31 @@
 #   serve([agent]; port=8080)
 ###############################################################################
 
-import HTTP
-import JSON3
+using HTTP: HTTP
+using JSON3: JSON3
 import UUIDs: uuid4
 
 # ── RunState ──────────────────────────────────────────────────────────────────
 
 mutable struct RunState
-    task             ::Union{Task, Nothing}
-    approval_channel ::Channel{String}
-    event_channel    ::Channel{String}   # pre-serialised JSON SSE lines
-    status           ::Symbol            # :running | :interrupted | :done | :error
-    result           ::Union{String, Nothing}
-    session_id       ::String
+    task::Union{Task,Nothing}
+    approval_channel::Channel{String}
+    event_channel::Channel{String}   # pre-serialised JSON SSE lines
+    status::Symbol            # :running | :interrupted | :done | :error
+    result::Union{String,Nothing}
+    session_id::String
 end
 
-RunState(session_id::String) = RunState(
-    nothing,
-    Channel{String}(1),
-    Channel{String}(256),
-    :running,
-    nothing,
-    session_id,
-)
+function RunState(session_id::String)
+    RunState(
+        nothing, Channel{String}(1), Channel{String}(256), :running, nothing, session_id
+    )
+end
 
 # ── Server state ──────────────────────────────────────────────────────────────
 
-const _runs   = Dict{String, RunState}()
-const _agents = Dict{String, Agent}()
+const _runs = Dict{String,RunState}()
+const _agents = Dict{String,Agent}()
 
 # Active store — set by serve(), used by all handlers.
 # Default: InMemorySessionStore (replaced on each serve() call).
@@ -53,24 +50,20 @@ end
 
 # Push a typed event onto the run's event channel (non-blocking best-effort)
 function _push_event(run::RunState, type::String, data)
-    isopen(run.event_channel) || return
+    isopen(run.event_channel) || return nothing
     put!(run.event_channel, _sse(type, data))
 end
 
 # ── AgentHooks that feed the event channel ────────────────────────────────────
 
 function _web_hooks(run::RunState)
-    AgentHooks(
-        on_tool_call = (agent, name, args) ->
-            _push_event(run, "tool_call", Dict(
-                "name" => name,
-                "args" => something(args, Dict()),
-            )),
-        on_tool_result = (agent, name, result) ->
-            _push_event(run, "tool_result", Dict(
-                "name"   => name,
-                "result" => string(result),
-            )),
+    AgentHooks(;
+        on_tool_call=(agent, name, args) -> _push_event(
+            run, "tool_call", Dict("name" => name, "args" => something(args, Dict()))
+        ),
+        on_tool_result=(agent, name, result) -> _push_event(
+            run, "tool_result", Dict("name" => name, "result" => string(result))
+        ),
     )
 end
 
@@ -79,29 +72,23 @@ end
 function _handle_static(req::HTTP.Request)
     ui_path = joinpath(@__DIR__, "ui.html")
     isfile(ui_path) || return HTTP.Response(404, "ui.html not found")
-    HTTP.Response(200,
-        ["Content-Type" => "text/html; charset=utf-8"],
-        body = read(ui_path))
+    HTTP.Response(200, ["Content-Type" => "text/html; charset=utf-8"]; body=read(ui_path))
 end
 
 function _handle_agents(req::HTTP.Request)
     list = [Dict("id" => name, "name" => name) for name in keys(_agents)]
-    HTTP.Response(200,
-        ["Content-Type" => "application/json"],
-        body = JSON3.write(list))
+    HTTP.Response(200, ["Content-Type" => "application/json"]; body=JSON3.write(list))
 end
 
 function _handle_chat(req::HTTP.Request)
-    body = JSON3.read(String(req.body), Dict{String, Any})
+    body = JSON3.read(String(req.body), Dict{String,Any})
 
-    agent_id   = something(get(body, "agent_id",   nothing), "")
+    agent_id = something(get(body, "agent_id", nothing), "")
     session_id = something(get(body, "session_id", nothing), "")
-    input      = something(get(body, "input",      nothing), "")
+    input = something(get(body, "input", nothing), "")
 
-    haskey(_agents, agent_id) ||
-        return HTTP.Response(400, "Unknown agent: $(agent_id)")
-    isempty(input) &&
-        return HTTP.Response(400, "input is required")
+    haskey(_agents, agent_id) || return HTTP.Response(400, "Unknown agent: $(agent_id)")
+    isempty(input) && return HTTP.Response(400, "input is required")
 
     # Resolve or create session
     store = _store[]
@@ -111,51 +98,53 @@ function _handle_chat(req::HTTP.Request)
         load(store, session_id)
     end
     if isnothing(session)
-        session    = Session(app_name = agent_id, user_id = "web")
+        session = Session(; app_name=agent_id, user_id="web")
         session_id = session.id
         save!(store, session)
     end
 
     run_id = string(uuid4())
-    run    = RunState(session_id)
+    run = RunState(session_id)
     _runs[run_id] = run
-    println("[NimbleAgents] run=$(run_id) session=$(session_id) agent=$(agent_id) — starting")
+    println(
+        "[NimbleAgents] run=$(run_id) session=$(session_id) agent=$(agent_id) — starting"
+    )
 
-    base_agent  = _agents[agent_id]
-    web_hooks   = _web_hooks(run)
+    base_agent = _agents[agent_id]
+    web_hooks = _web_hooks(run)
 
     # Merge web hooks with any user-defined hooks on the agent
-    merged_hooks = AgentHooks(
-        before_llm_call  = base_agent.hooks.before_llm_call,
-        after_llm_call    = base_agent.hooks.after_llm_call,
-        should_interrupt = base_agent.hooks.should_interrupt,
-        on_tool_call     = (ag, name, args) -> begin
+    merged_hooks = AgentHooks(;
+        before_llm_call=base_agent.hooks.before_llm_call,
+        after_llm_call=base_agent.hooks.after_llm_call,
+        should_interrupt=base_agent.hooks.should_interrupt,
+        on_tool_call=(ag, name, args) -> begin
             isnothing(base_agent.hooks.on_tool_call) ||
                 base_agent.hooks.on_tool_call(ag, name, args)
             web_hooks.on_tool_call(ag, name, args)
         end,
-        on_tool_result = (ag, name, result) -> begin
+        on_tool_result=(ag, name, result) -> begin
             isnothing(base_agent.hooks.on_tool_result) ||
                 base_agent.hooks.on_tool_result(ag, name, result)
             web_hooks.on_tool_result(ag, name, result)
         end,
-        on_complete = base_agent.hooks.on_complete,
+        on_complete=base_agent.hooks.on_complete,
     )
 
-    agent = Agent(
-        name          = base_agent.name,
-        instructions  = base_agent.instructions,
-        tools         = base_agent.tools,
-        model         = base_agent.model,
-        max_iterations= base_agent.max_iterations,
-        output_type   = base_agent.output_type,
-        sub_agents    = base_agent.sub_agents,
-        retry         = base_agent.retry,
-        context       = base_agent.context,
-        hooks         = merged_hooks,
-        skills        = base_agent.skills,
-        skill_dirs    = base_agent.skill_dirs,
-        mcp_servers   = base_agent.mcp_servers,
+    agent = Agent(;
+        name=base_agent.name,
+        instructions=base_agent.instructions,
+        tools=base_agent.tools,
+        model=base_agent.model,
+        max_iterations=base_agent.max_iterations,
+        output_type=base_agent.output_type,
+        sub_agents=base_agent.sub_agents,
+        retry=base_agent.retry,
+        context=base_agent.context,
+        hooks=merged_hooks,
+        skills=base_agent.skills,
+        skill_dirs=base_agent.skill_dirs,
+        mcp_servers=base_agent.mcp_servers,
     )
 
     # Collect tokens into buffer for streaming
@@ -163,19 +152,23 @@ function _handle_chat(req::HTTP.Request)
 
     run.task = Threads.@spawn begin
         try
-            result = run!(agent, input;
-                session          = session,
-                store            = store,
-                verbose          = false,
-                approval_channel = run.approval_channel,
-                on_token         = tok -> begin
+            result = run!(
+                agent,
+                input;
+                session=session,
+                store=store,
+                verbose=false,
+                approval_channel=run.approval_channel,
+                on_token=tok -> begin
                     print(token_buf, tok)
                     _push_event(run, "token", tok)
                 end,
             )
             run.result = string(result)
             run.status = :done
-            println("[NimbleAgents] run=$(run_id) — done, result length=$(length(run.result))")
+            println(
+                "[NimbleAgents] run=$(run_id) — done, result length=$(length(run.result))"
+            )
             _push_event(run, "done", Dict("result" => run.result))
         catch e
             if e isa ApprovalTimeout
@@ -195,12 +188,11 @@ function _handle_chat(req::HTTP.Request)
         end
     end
 
-    HTTP.Response(200,
-        ["Content-Type" => "application/json"],
-        body = JSON3.write(Dict(
-            "run_id"     => run_id,
-            "session_id" => session_id,
-        )))
+    HTTP.Response(
+        200,
+        ["Content-Type" => "application/json"];
+        body=JSON3.write(Dict("run_id" => run_id, "session_id" => session_id)),
+    )
 end
 
 # SSE streaming — called directly by the router to write incrementally
@@ -209,14 +201,14 @@ function _stream_sse(http::HTTP.Stream, run_id::String)
         HTTP.setstatus(http, 404)
         HTTP.startwrite(http)
         write(http, "Run not found")
-        return
+        return nothing
     end
 
     run = _runs[run_id]
 
-    HTTP.setheader(http, "Content-Type"  => "text/event-stream")
+    HTTP.setheader(http, "Content-Type" => "text/event-stream")
     HTTP.setheader(http, "Cache-Control" => "no-cache")
-    HTTP.setheader(http, "Connection"    => "keep-alive")
+    HTTP.setheader(http, "Connection" => "keep-alive")
     HTTP.setheader(http, "Access-Control-Allow-Origin" => "*")
     HTTP.startwrite(http)
 
@@ -227,22 +219,21 @@ function _stream_sse(http::HTTP.Stream, run_id::String)
 end
 
 function _handle_approve(req::HTTP.Request, run_id::String)
-    haskey(_runs, run_id) ||
-        return HTTP.Response(404, "Run not found: $(run_id)")
+    haskey(_runs, run_id) || return HTTP.Response(404, "Run not found: $(run_id)")
 
     run = _runs[run_id]
     run.status == :interrupted ||
         return HTTP.Response(400, "Run is not awaiting approval (status: $(run.status))")
 
-    body     = JSON3.read(String(req.body), Dict{String, Any})
+    body = JSON3.read(String(req.body), Dict{String,Any})
     response = get(body, "response", "approve")
 
     put!(run.approval_channel, response)
     run.status = :running
 
-    HTTP.Response(200,
-        ["Content-Type" => "application/json"],
-        body = JSON3.write(Dict("ok" => true)))
+    HTTP.Response(
+        200, ["Content-Type" => "application/json"]; body=JSON3.write(Dict("ok" => true))
+    )
 end
 
 function _handle_session(req::HTTP.Request, session_id::String)
@@ -254,27 +245,28 @@ function _handle_session(req::HTTP.Request, session_id::String)
     end
     println("[NimbleAgents] Session loaded — $(length(session.events)) turn(s)")
 
-    events  = map(session.events) do e
+    events = map(session.events) do e
         Dict(
-            "agent"         => e.agent,
-            "input"         => e.input,
-            "output"        => something(e.output, ""),
-            "llm_calls"     => e.llm_calls,
-            "input_tokens"  => e.input_tokens,
+            "agent" => e.agent,
+            "input" => e.input,
+            "output" => something(e.output, ""),
+            "llm_calls" => e.llm_calls,
+            "input_tokens" => e.input_tokens,
             "output_tokens" => e.output_tokens,
-            "elapsed"       => round(e.elapsed; digits=2),
-            "timestamp"     => e.timestamp,
-            "tool_calls"    => map(t -> Dict(
-                "name"   => t.name,
-                "args"   => t.args,
-                "result" => string(something(t.result, "")),
-            ), e.tool_calls),
+            "elapsed" => round(e.elapsed; digits=2),
+            "timestamp" => e.timestamp,
+            "tool_calls" => map(
+                t -> Dict(
+                    "name" => t.name,
+                    "args" => t.args,
+                    "result" => string(something(t.result, "")),
+                ),
+                e.tool_calls,
+            ),
         )
     end
 
-    HTTP.Response(200,
-        ["Content-Type" => "application/json"],
-        body = JSON3.write(events))
+    HTTP.Response(200, ["Content-Type" => "application/json"]; body=JSON3.write(events))
 end
 
 function _handle_session_trace(req::HTTP.Request, session_id::String)
@@ -295,62 +287,68 @@ function _handle_session_trace(req::HTTP.Request, session_id::String)
         return HTTP.Response(500, "Trace construction failed: $(msg)")
     end
 
-    println("[NimbleAgents] Trace built — turns=$(length(trace.turns)) " *
-            "tokens=$(trace.total_tokens) duration=$(round(trace.duration; digits=2))s")
+    println(
+        "[NimbleAgents] Trace built — turns=$(length(trace.turns)) " *
+        "tokens=$(trace.total_tokens) duration=$(round(trace.duration; digits=2))s",
+    )
 
-    data = Dict{String, Any}(
-        "total_input_tokens"  => trace.total_input_tokens,
+    data = Dict{String,Any}(
+        "total_input_tokens" => trace.total_input_tokens,
         "total_output_tokens" => trace.total_output_tokens,
-        "total_tokens"        => trace.total_tokens,
-        "total_cost"          => round(trace.total_cost; digits=4),
-        "total_llm_calls"     => trace.total_llm_calls,
-        "total_tool_calls"    => trace.total_tool_calls,
-        "duration"            => round(trace.duration; digits=2),
-        "agents"              => trace.agents,
-        "turns"               => map(trace.turns) do t
-            Dict{String, Any}(
-                "agent"         => t.agent,
-                "model"         => t.model,
-                "input"         => t.input,
-                "output"        => isnothing(t.output) ? "" : string(t.output),
-                "llm_calls"     => t.llm_calls,
-                "input_tokens"  => t.input_tokens,
+        "total_tokens" => trace.total_tokens,
+        "total_cost" => round(trace.total_cost; digits=4),
+        "total_llm_calls" => trace.total_llm_calls,
+        "total_tool_calls" => trace.total_tool_calls,
+        "duration" => round(trace.duration; digits=2),
+        "agents" => trace.agents,
+        "turns" => map(trace.turns) do t
+            Dict{String,Any}(
+                "agent" => t.agent,
+                "model" => t.model,
+                "input" => t.input,
+                "output" => isnothing(t.output) ? "" : string(t.output),
+                "llm_calls" => t.llm_calls,
+                "input_tokens" => t.input_tokens,
                 "output_tokens" => t.output_tokens,
-                "cost"          => round(t.cost; digits=4),
-                "elapsed"       => round(t.elapsed; digits=2),
-                "timestamp"     => t.timestamp,
-                "tool_calls"    => map(t.tool_calls) do te
-                    Dict{String, Any}(
-                        "name"   => te.name,
-                        "args"   => Dict(string(k) => v for (k, v) in te.args),
+                "cost" => round(t.cost; digits=4),
+                "elapsed" => round(t.elapsed; digits=2),
+                "timestamp" => t.timestamp,
+                "tool_calls" => map(t.tool_calls) do te
+                    Dict{String,Any}(
+                        "name" => te.name,
+                        "args" => Dict(string(k) => v for (k, v) in te.args),
                         "result" => isnothing(te.result) ? "" : string(te.result),
-                        "error"  => te.error,
+                        "error" => te.error,
                     )
                 end,
             )
         end,
     )
 
-    HTTP.Response(200,
-        ["Content-Type" => "application/json",
-         "Access-Control-Allow-Origin" => "*"],
-        body = JSON3.write(data))
+    HTTP.Response(
+        200,
+        ["Content-Type" => "application/json", "Access-Control-Allow-Origin" => "*"];
+        body=JSON3.write(data),
+    )
 end
 
 # ── CORS preflight ────────────────────────────────────────────────────────────
 
 function _cors(req::HTTP.Request)
-    HTTP.Response(200, [
-        "Access-Control-Allow-Origin"  => "*",
-        "Access-Control-Allow-Methods" => "GET, POST, OPTIONS",
-        "Access-Control-Allow-Headers" => "Content-Type",
-    ])
+    HTTP.Response(
+        200,
+        [
+            "Access-Control-Allow-Origin" => "*",
+            "Access-Control-Allow-Methods" => "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers" => "Content-Type",
+        ],
+    )
 end
 
 # ── Router ────────────────────────────────────────────────────────────────────
 
 function _router(http::HTTP.Stream)
-    req    = http.message
+    req = http.message
     method = req.method
     target = req.target
 
@@ -361,18 +359,17 @@ function _router(http::HTTP.Stream)
     # CORS preflight
     if method == "OPTIONS"
         HTTP.setstatus(http, 200)
-        HTTP.setheader(http, "Access-Control-Allow-Origin"  => "*")
+        HTTP.setheader(http, "Access-Control-Allow-Origin" => "*")
         HTTP.setheader(http, "Access-Control-Allow-Methods" => "GET, POST, OPTIONS")
         HTTP.setheader(http, "Access-Control-Allow-Headers" => "Content-Type")
         HTTP.startwrite(http)
-        return
+        return nothing
     end
 
     # SSE streaming — handled specially to write incrementally
-    if method == "GET" && length(parts) == 3 &&
-            parts[1] == "runs" && parts[3] == "stream"
+    if method == "GET" && length(parts) == 3 && parts[1] == "runs" && parts[3] == "stream"
         _stream_sse(http, String(parts[2]))
-        return
+        return nothing
     end
 
     # All other routes — read full request body then write response
@@ -384,15 +381,18 @@ function _router(http::HTTP.Stream)
     elseif method == "POST" && parts == ["chat"]
         req = HTTP.Request(method, target, req.headers, read(http))
         _handle_chat(req)
-    elseif method == "POST" && length(parts) == 3 &&
-            parts[1] == "runs" && parts[3] == "approve"
+    elseif method == "POST" &&
+        length(parts) == 3 &&
+        parts[1] == "runs" &&
+        parts[3] == "approve"
         req = HTTP.Request(method, target, req.headers, read(http))
         _handle_approve(req, String(parts[2]))
-    elseif method == "GET" && length(parts) == 3 &&
-            parts[1] == "sessions" && parts[3] == "trace"
+    elseif method == "GET" &&
+        length(parts) == 3 &&
+        parts[1] == "sessions" &&
+        parts[3] == "trace"
         _handle_session_trace(req, String(parts[2]))
-    elseif method == "GET" && length(parts) == 2 &&
-            parts[1] == "sessions"
+    elseif method == "GET" && length(parts) == 2 && parts[1] == "sessions"
         _handle_session(req, String(parts[2]))
     else
         HTTP.Response(404, "Not found: $(path)")
@@ -444,10 +444,12 @@ serve([agent]; port=8080)
 serve([agent]; port=8080, store=JSONSessionStore(".nimble/sessions"))
 ```
 """
-function serve(agents::Vector{<:Agent};
-               port  ::Int                  = 8080,
-               host  ::String               = "127.0.0.1",
-               store ::AbstractSessionStore = InMemorySessionStore())
+function serve(
+    agents::Vector{<:Agent};
+    port::Int=8080,
+    host::String="127.0.0.1",
+    store::AbstractSessionStore=InMemorySessionStore(),
+)
     empty!(_agents)
     empty!(_runs)
     _store[] = store
@@ -467,9 +469,15 @@ function serve(agents::Vector{<:Agent};
         try
             _router(http)
         catch e
-            println(stderr, "[NimbleAgents] Request error on ",
-                http.message.method, " ", http.message.target, ": ",
-                sprint(showerror, e))
+            println(
+                stderr,
+                "[NimbleAgents] Request error on ",
+                http.message.method,
+                " ",
+                http.message.target,
+                ": ",
+                sprint(showerror, e),
+            )
             println(stderr, sprint(Base.show_backtrace, catch_backtrace()))
             try
                 HTTP.setstatus(http, 500)

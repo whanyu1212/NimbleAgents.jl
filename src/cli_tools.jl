@@ -34,11 +34,12 @@ Describes one argument of a `CLITool`.
 - `required::Bool`: Whether the argument must be provided (default: `true`).
 """
 struct CLIArg
-    type        ::Type
-    description ::String
-    required    ::Bool
-    CLIArg(type::Type, description::String; required::Bool=true) =
+    type::Type
+    description::String
+    required::Bool
+    function CLIArg(type::Type, description::String; required::Bool=true)
         new(type, description, required)
+    end
 end
 
 # ── CLITool ───────────────────────────────────────────────────────────────────
@@ -90,60 +91,66 @@ grep_tool = CLITool(
 ```
 """
 struct CLITool <: AbstractTool
-    name           ::String
-    description    ::String
-    command        ::Vector{String}
-    args           ::Vector{Pair{String, CLIArg}}
-    timeout        ::Float64
-    working_dir    ::Union{String, Nothing}
-    return_direct  ::Bool
+    name::String
+    description::String
+    command::Vector{String}
+    args::Vector{Pair{String,CLIArg}}
+    timeout::Float64
+    working_dir::Union{String,Nothing}
+    return_direct::Bool
     return_artifact::Bool
 
     # Pre-built JSON schema for the LLM (computed once at construction)
-    parameters  ::Dict{String, Any}
-    strict      ::Union{Bool, Nothing}
+    parameters::Dict{String,Any}
+    strict::Union{Bool,Nothing}
 end
 
 function CLITool(;
-    name            ::String,
-    description     ::String,
-    command         ::Vector{String},
-    args            ::Vector{Pair{String, CLIArg}} = Pair{String, CLIArg}[],
-    timeout         ::Float64                      = 30.0,
-    working_dir     ::Union{String, Nothing}       = nothing,
-    return_direct   ::Bool                         = false,
-    return_artifact ::Bool                         = false,
-    strict          ::Union{Bool, Nothing}         = nothing,
+    name::String,
+    description::String,
+    command::Vector{String},
+    args::Vector{Pair{String,CLIArg}}=Pair{String,CLIArg}[],
+    timeout::Float64=30.0,
+    working_dir::Union{String,Nothing}=nothing,
+    return_direct::Bool=false,
+    return_artifact::Bool=false,
+    strict::Union{Bool,Nothing}=nothing,
 )
     parameters = _cli_schema(args)
-    CLITool(name, description, command, args, timeout, working_dir,
-            return_direct, return_artifact, parameters, strict)
+    CLITool(
+        name,
+        description,
+        command,
+        args,
+        timeout,
+        working_dir,
+        return_direct,
+        return_artifact,
+        parameters,
+        strict,
+    )
 end
 
 # ── JSON schema generation ────────────────────────────────────────────────────
 
-_julia_type_to_json(::Type{String})  = "string"
-_julia_type_to_json(::Type{Int})     = "integer"
+_julia_type_to_json(::Type{String}) = "string"
+_julia_type_to_json(::Type{Int}) = "integer"
 _julia_type_to_json(::Type{Float64}) = "number"
-_julia_type_to_json(::Type{Bool})    = "boolean"
-_julia_type_to_json(T::Type)         = "string"   # fallback: stringify
+_julia_type_to_json(::Type{Bool}) = "boolean"
+_julia_type_to_json(T::Type) = "string"   # fallback: stringify
 
-function _cli_schema(args::Vector{Pair{String, CLIArg}})
-    properties = Dict{String, Any}()
-    required   = String[]
+function _cli_schema(args::Vector{Pair{String,CLIArg}})
+    properties = Dict{String,Any}()
+    required = String[]
 
     for (arg_name, arg) in args
-        properties[arg_name] = Dict{String, Any}(
-            "type"        => _julia_type_to_json(arg.type),
-            "description" => arg.description,
+        properties[arg_name] = Dict{String,Any}(
+            "type" => _julia_type_to_json(arg.type), "description" => arg.description
         )
         arg.required && push!(required, arg_name)
     end
 
-    schema = Dict{String, Any}(
-        "type"       => "object",
-        "properties" => properties,
-    )
+    schema = Dict{String,Any}("type" => "object", "properties" => properties)
     isempty(required) || (schema["required"] = required)
     schema
 end
@@ -152,7 +159,7 @@ end
 
 # Substitute {arg_name} placeholders in each command token.
 # Returns a Cmd (Vector{String} under the hood) — never a shell string.
-function _render_command(tool::CLITool, args::Dict{Symbol, <:Any})
+function _render_command(tool::CLITool, args::Dict{Symbol,<:Any})
     rendered = map(tool.command) do token
         result = token
         for (arg_name, _) in tool.args
@@ -167,7 +174,7 @@ end
 
 # ── Subprocess execution ──────────────────────────────────────────────────────
 
-function _run_cli(tool::CLITool, args::Dict{Symbol, <:Any})
+function _run_cli(tool::CLITool, args::Dict{Symbol,<:Any})
     cmd = _render_command(tool, args)
 
     # Apply working directory if set
@@ -178,14 +185,11 @@ function _run_cli(tool::CLITool, args::Dict{Symbol, <:Any})
     stdout_buf = IOBuffer()
     stderr_buf = IOBuffer()
 
-    proc = run(pipeline(cmd,
-                        stdout = stdout_buf,
-                        stderr = stderr_buf);
-               wait = false)
+    proc = run(pipeline(cmd; stdout=stdout_buf, stderr=stderr_buf); wait=false)
 
     # Wait with timeout
     timed_out = false
-    t_start   = time()
+    t_start = time()
     while process_running(proc)
         if time() - t_start > tool.timeout
             kill(proc)
@@ -216,16 +220,15 @@ function _run_cli(tool::CLITool, args::Dict{Symbol, <:Any})
         "(no output)"
     end
 
-    exit_code == 0 ? result :
-        "Error (exit code $(exit_code)):\n$(result)"
+    exit_code == 0 ? result : "Error (exit code $(exit_code)):\n$(result)"
 end
 
 # ── _call_tool dispatch ───────────────────────────────────────────────────────
 
 # CLITool has no callable field — add a method to the existing _call_tool generic.
-_call_tool(tool::CLITool, args::Dict{Symbol, <:Any}) = _run_cli(tool, args)
+_call_tool(tool::CLITool, args::Dict{Symbol,<:Any}) = _run_cli(tool, args)
 
 # ── _is_return_direct ─────────────────────────────────────────────────────────
 
-_is_return_direct(t::CLITool)   = t.return_direct
+_is_return_direct(t::CLITool) = t.return_direct
 _is_return_artifact(t::CLITool) = t.return_artifact

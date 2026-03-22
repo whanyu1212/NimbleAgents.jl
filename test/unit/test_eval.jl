@@ -23,10 +23,13 @@ _ai_msg_eval(text) = PT.AIMessage(; content=text, tokens=(10, 10), elapsed=0.1)
 end
 
 @testset "EvalCase — full construction" begin
-    c = EvalCase(input="hi", expected="bye",
-                 expected_tools=["add", "mul"],
-                 reference=Dict{String,Any}("key" => 1),
-                 tags=["math"])
+    c = EvalCase(
+        input="hi",
+        expected="bye",
+        expected_tools=["add", "mul"],
+        reference=Dict{String,Any}("key" => 1),
+        tags=["math"],
+    )
     @test c.input == "hi"
     @test c.expected == "bye"
     @test c.expected_tools == ["add", "mul"]
@@ -63,10 +66,24 @@ end
     trace1 = Trace([_make_turn(cost=0.01)])
     trace2 = Trace([_make_turn(cost=0.02)])
 
-    r1 = EvalResult(c1, "out1", trace1, Dict("exact_match" => 1.0, "fuzzy_match" => 0.8),
-                    true, nothing, 1.0)
-    r2 = EvalResult(c2, "out2", trace2, Dict("exact_match" => 0.0, "fuzzy_match" => 0.6),
-                    false, nothing, 2.0)
+    r1 = EvalResult(
+        c1,
+        "out1",
+        trace1,
+        Dict("exact_match" => 1.0, "fuzzy_match" => 0.8),
+        true,
+        nothing,
+        1.0,
+    )
+    r2 = EvalResult(
+        c2,
+        "out2",
+        trace2,
+        Dict("exact_match" => 0.0, "fuzzy_match" => 0.6),
+        false,
+        nothing,
+        2.0,
+    )
 
     report = EvalReport([r1, r2])
     @test report.pass_rate == 0.5
@@ -283,10 +300,7 @@ end
 
     apply(patch) do
         agent = Agent(name="Bot", instructions="Be helpful.")
-        cases = [
-            EvalCase(input="2+2?", expected="4"),
-            EvalCase(input="3+3?", expected="6"),
-        ]
+        cases = [EvalCase(input="2+2?", expected="4"), EvalCase(input="3+3?", expected="6")]
         report = run_eval(agent, cases; metrics=[exact_match], verbose=false)
 
         @test length(report.results) == 2
@@ -324,8 +338,9 @@ end
     apply(patch) do
         agent = Agent(name="Bot", instructions="Be helpful.")
         cases = [EvalCase(input="x", expected="close")]
-        report = run_eval(agent, cases; metrics=[fuzzy_match],
-                          verbose=false, pass_threshold=0.5)
+        report = run_eval(
+            agent, cases; metrics=[fuzzy_match], verbose=false, pass_threshold=0.5
+        )
 
         # "close" is a substring of "close match" → fuzzy_match = 1.0
         @test report.results[1].passed == true
@@ -340,14 +355,16 @@ end
         if call_count[] == 1
             # First call: LLM wants to call "add" tool
             tm = PT.ToolMessage(
-                content      = nothing,
-                raw          = "",
-                tool_call_id = "call_ev_add",
-                name         = "ev_add",
-                args         = Dict{Symbol,Any}(:x => 2, :y => 2),
+                content=nothing,
+                raw="",
+                tool_call_id="call_ev_add",
+                name="ev_add",
+                args=Dict{Symbol,Any}(:x => 2, :y => 2),
             )
-            push!(conv, PT.AIToolRequest(;
-                tool_calls=[tm], content="", tokens=(5,5), elapsed=0.1))
+            push!(
+                conv,
+                PT.AIToolRequest(; tool_calls=[tm], content="", tokens=(5, 5), elapsed=0.1),
+            )
         else
             # Second call: final text
             push!(conv, _ai_msg_eval("4"))
@@ -358,8 +375,9 @@ end
     apply(patch) do
         agent = Agent(name="Bot", instructions="Be helpful.", tools=[ev_add_tool])
         cases = [EvalCase(input="2+2?", expected="4", expected_tools=["ev_add"])]
-        report = run_eval(agent, cases;
-                          metrics=[exact_match, tool_trajectory], verbose=false)
+        report = run_eval(
+            agent, cases; metrics=[exact_match, tool_trajectory], verbose=false
+        )
 
         @test report.results[1].scores["exact_match"] == 1.0
         @test report.results[1].scores["tool_trajectory"] == 1.0

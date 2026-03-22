@@ -29,23 +29,23 @@ A single stored fact in the memory system.
 - `created_at::Float64`: `time()` when the memory was created.
 """
 struct MemoryEntry
-    id                ::String
-    content           ::String
-    user_id           ::String
-    app_name          ::String
-    metadata          ::Dict{String, Any}
-    source_session_id ::Union{String, Nothing}
-    created_at        ::Float64
+    id::String
+    content::String
+    user_id::String
+    app_name::String
+    metadata::Dict{String,Any}
+    source_session_id::Union{String,Nothing}
+    created_at::Float64
 end
 
 function MemoryEntry(;
-    content           ::String,
-    user_id           ::String,
-    app_name          ::String,
-    metadata          ::Dict{String, Any}           = Dict{String, Any}(),
-    source_session_id ::Union{String, Nothing}      = nothing,
-    id                ::String                       = string(Base.UUID(rand(UInt128))),
-    created_at        ::Float64                      = time(),
+    content::String,
+    user_id::String,
+    app_name::String,
+    metadata::Dict{String,Any}=Dict{String,Any}(),
+    source_session_id::Union{String,Nothing}=nothing,
+    id::String=string(Base.UUID(rand(UInt128))),
+    created_at::Float64=time(),
 )
     MemoryEntry(id, content, user_id, app_name, metadata, source_session_id, created_at)
 end
@@ -106,23 +106,26 @@ In-memory memory backend using keyword search. Good for testing and short-lived
 applications. All data is lost when the process exits.
 """
 struct InMemoryMemoryService <: AbstractMemoryService
-    entries ::Dict{String, MemoryEntry}
-    lock    ::ReentrantLock
+    entries::Dict{String,MemoryEntry}
+    lock::ReentrantLock
 
-    InMemoryMemoryService() = new(Dict{String, MemoryEntry}(), ReentrantLock())
+    InMemoryMemoryService() = new(Dict{String,MemoryEntry}(), ReentrantLock())
 end
 
-function add_memory!(service::InMemoryMemoryService, content::String;
-                     user_id   ::String                    = "default",
-                     app_name  ::String                    = "NimbleAgents",
-                     metadata  ::Dict{String, Any}         = Dict{String, Any}(),
-                     session_id::Union{String, Nothing}    = nothing)
+function add_memory!(
+    service::InMemoryMemoryService,
+    content::String;
+    user_id::String="default",
+    app_name::String="NimbleAgents",
+    metadata::Dict{String,Any}=Dict{String,Any}(),
+    session_id::Union{String,Nothing}=nothing,
+)
     entry = MemoryEntry(;
-        content           = content,
-        user_id           = user_id,
-        app_name          = app_name,
-        metadata          = metadata,
-        source_session_id = session_id,
+        content=content,
+        user_id=user_id,
+        app_name=app_name,
+        metadata=metadata,
+        source_session_id=session_id,
     )
     lock(service.lock) do
         service.entries[entry.id] = entry
@@ -130,18 +133,20 @@ function add_memory!(service::InMemoryMemoryService, content::String;
     entry
 end
 
-function search_memory(service::InMemoryMemoryService, query::String;
-                       user_id  ::String = "default",
-                       app_name ::String = "NimbleAgents",
-                       top_k    ::Int    = 5)
+function search_memory(
+    service::InMemoryMemoryService,
+    query::String;
+    user_id::String="default",
+    app_name::String="NimbleAgents",
+    top_k::Int=5,
+)
     candidates = lock(service.lock) do
-        [e for e in values(service.entries)
-         if e.user_id == user_id && e.app_name == app_name]
+        [e for e in values(service.entries) if e.user_id == user_id && e.app_name == app_name]
     end
 
     scored = [(e, _keyword_score(query, e.content)) for e in candidates]
     filter!(x -> x[2] > 0.0, scored)
-    sort!(scored; by = x -> -x[2])
+    sort!(scored; by=x -> -x[2])
 
     [e for (e, _) in scored[1:min(top_k, length(scored))]]
 end
@@ -153,9 +158,11 @@ function delete_memory!(service::InMemoryMemoryService, id::String)
     nothing
 end
 
-function list_memories(service::InMemoryMemoryService;
-                       user_id  ::Union{String, Nothing} = nothing,
-                       app_name ::Union{String, Nothing} = nothing)
+function list_memories(
+    service::InMemoryMemoryService;
+    user_id::Union{String,Nothing}=nothing,
+    app_name::Union{String,Nothing}=nothing,
+)
     lock(service.lock) do
         entries = collect(values(service.entries))
         if !isnothing(user_id)
@@ -180,15 +187,16 @@ end
 Build a system prompt fragment with relevant memories for the current input.
 Returns `""` if memory is nothing, session is nothing, or no results are found.
 """
-function _memory_prompt(memory::Union{AbstractMemoryService, Nothing},
-                        input::String,
-                        session::Union{Session, Nothing})
+function _memory_prompt(
+    memory::Union{AbstractMemoryService,Nothing},
+    input::String,
+    session::Union{Session,Nothing},
+)
     isnothing(memory) && return ""
     isnothing(session) && return ""
 
-    results = search_memory(memory, input;
-        user_id  = session.user_id,
-        app_name = session.app_name,
+    results = search_memory(
+        memory, input; user_id=session.user_id, app_name=session.app_name
     )
     isempty(results) && return ""
 

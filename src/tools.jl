@@ -9,7 +9,7 @@ import PromptingTools as PT
 
 # Re-export the core types so users only need `using NimbleAgents`
 const AbstractTool = PT.AbstractTool
-const ToolMessage  = PT.ToolMessage
+const ToolMessage = PT.ToolMessage
 
 # ──────────────────────────────────────────────────────────────────────────────
 # NimbleTool — extends PT.Tool with return_direct
@@ -28,29 +28,49 @@ Use `@tool` (or `@tool return_direct=true`) to create tools; you rarely need
 to construct `NimbleTool` directly.
 """
 struct NimbleTool <: AbstractTool
-    name           ::String
-    parameters     ::Dict{String, Any}
-    description    ::Union{String, Nothing}
-    callable       ::Any
-    return_direct  ::Bool
+    name::String
+    parameters::Dict{String,Any}
+    description::Union{String,Nothing}
+    callable::Any
+    return_direct::Bool
     return_artifact::Bool
-    strict         ::Union{Bool, Nothing}
+    strict::Union{Bool,Nothing}
+    max_output::Int   # 0 = unlimited (use agent default)
 end
 
-NimbleTool(; name, parameters, description=nothing, callable,
-             return_direct=false, return_artifact=false, strict=nothing) =
-    NimbleTool(name, parameters, description, callable,
-               return_direct, return_artifact, strict)
+function NimbleTool(;
+    name,
+    parameters,
+    description=nothing,
+    callable,
+    return_direct=false,
+    return_artifact=false,
+    strict=nothing,
+    max_output=0,
+)
+    NimbleTool(
+        name,
+        parameters,
+        description,
+        callable,
+        return_direct,
+        return_artifact,
+        strict,
+        max_output,
+    )
+end
 
 # Keep PT.Tool as an alias so existing code using Tool still works
 const Tool = NimbleTool
 
 # Helper used in run! — false for PT.Tool (third-party tools), true only when set
-_is_return_direct(t::NimbleTool)   = t.return_direct
-_is_return_direct(::PT.Tool)       = false
+_is_return_direct(t::NimbleTool) = t.return_direct
+_is_return_direct(::PT.Tool) = false
 _is_return_artifact(t::NimbleTool) = t.return_artifact
-_is_return_artifact(::PT.Tool)     = false
-_is_return_artifact(::Any)         = false
+_is_return_artifact(::PT.Tool) = false
+_is_return_artifact(::Any) = false
+_max_output(t::NimbleTool) = t.max_output
+_max_output(::Any) = 0
 
 # ──────────────────────────────────────────────────────────────────────────────
 # @tool macro
@@ -100,17 +120,18 @@ end
 ```
 """
 macro tool(args...)
-    return_direct   = false
+    return_direct = false
     return_artifact = false
+    max_output = 0
     funcdef = nothing
 
     for arg in args
-        if arg isa Expr && arg.head == :(=) &&
-                arg.args[1] == :return_direct
+        if arg isa Expr && arg.head == :(=) && arg.args[1] == :return_direct
             return_direct = arg.args[2]
-        elseif arg isa Expr && arg.head == :(=) &&
-                arg.args[1] == :return_artifact
+        elseif arg isa Expr && arg.head == :(=) && arg.args[1] == :return_artifact
             return_artifact = arg.args[2]
+        elseif arg isa Expr && arg.head == :(=) && arg.args[1] == :max_output
+            max_output = arg.args[2]
         elseif arg isa Expr && arg.head in (:function, :(=))
             funcdef = arg
         else
@@ -118,8 +139,7 @@ macro tool(args...)
         end
     end
 
-    isnothing(funcdef) &&
-        error("@tool expects a function definition")
+    isnothing(funcdef) && error("@tool expects a function definition")
 
     # Extract the function name from the signature
     sig = funcdef.args[1]
@@ -132,7 +152,7 @@ macro tool(args...)
     end
 
     bare_name = fname isa Expr ? fname.args[end] : fname
-    tool_var  = Symbol(bare_name, :_tool)
+    tool_var = Symbol(bare_name, :_tool)
     tool_name = string(bare_name)
 
     # Extract description from the first string literal in the body
@@ -151,27 +171,28 @@ macro tool(args...)
     docs_expr = isnothing(docs) ? :nothing : docs
 
     schema_build = quote
-        local _method    = first(methods($(esc(fname))))
+        local _method = first(methods($(esc(fname))))
         local _arg_names = PT.get_arg_names(_method)
         local _arg_types = PT.get_arg_types(_method)
 
-        local _properties = Dict{String, Any}()
-        local _required   = String[]
+        local _properties = Dict{String,Any}()
+        local _required = String[]
         for (n, t) in zip(_arg_names, _arg_types)
             _properties[string(n)] = PT.to_json_schema(PT.remove_null_types(t))
             PT.is_required_field(t) && push!(_required, string(n))
         end
 
-        local _params = Dict{String, Any}("type" => "object", "properties" => _properties)
+        local _params = Dict{String,Any}("type" => "object", "properties" => _properties)
         isempty(_required) || (_params["required"] = _required)
 
         $(esc(tool_var)) = NimbleTool(;
-            name            = $(tool_name),
-            parameters      = _params,
-            description     = $(docs_expr),
-            callable        = $(esc(fname)),
-            return_direct   = $(return_direct),
-            return_artifact = $(return_artifact),
+            name=($(tool_name)),
+            parameters=_params,
+            description=($(docs_expr)),
+            callable=($(esc(fname))),
+            return_direct=($(return_direct)),
+            return_artifact=($(return_artifact)),
+            max_output=($(max_output)),
         )
     end
 
@@ -187,7 +208,7 @@ end
 
 Convert a vector of `Tool` objects into a name-keyed dict for fast dispatch.
 """
-function build_tool_map(tools::Vector{<:AbstractTool})::Dict{String, AbstractTool}
+function build_tool_map(tools::Vector{<:AbstractTool})::Dict{String,AbstractTool}
     Dict(t.name => t for t in tools)
 end
 
@@ -199,12 +220,9 @@ APIs expect under the `tools` key.
 """
 function tools_schema(tools::Vector{<:AbstractTool})
     map(tools) do t
-        schema = Dict{String, Any}(
+        schema = Dict{String,Any}(
             "type" => "function",
-            "function" => Dict{String, Any}(
-                "name"        => t.name,
-                "parameters"  => t.parameters,
-            ),
+            "function" => Dict{String,Any}("name" => t.name, "parameters" => t.parameters),
         )
         if !isnothing(t.description) && !isempty(t.description)
             schema["function"]["description"] = t.description
@@ -231,9 +249,7 @@ reflects the original parameter order), so this is robust to Julia mangling
 method argument names in test environments.
 """
 function dispatch_tool(
-    tool_map::Dict{String, <:AbstractTool},
-    name::String,
-    args::Dict{Symbol, <:Any},
+    tool_map::Dict{String,<:AbstractTool}, name::String, args::Dict{Symbol,<:Any}
 )
     haskey(tool_map, name) ||
         throw(PT.ToolNotFoundError("Tool `$name` not found in tool map"))
@@ -248,10 +264,7 @@ end
 Convenience overload that accepts a `ToolMessage` directly (as returned by
 `PromptingTools` when parsing an LLM response with tool calls).
 """
-function dispatch_tool(
-    tool_map::Dict{String, <:AbstractTool},
-    msg::ToolMessage,
-)
+function dispatch_tool(tool_map::Dict{String,<:AbstractTool}, msg::ToolMessage)
     haskey(tool_map, msg.name) ||
         throw(PT.ToolNotFoundError("Tool `$(msg.name)` not found in tool map"))
 
@@ -262,22 +275,39 @@ end
 # ── Tool input validation ─────────────────────────────────────────────────────
 
 # JSON schema type → Julia types that are considered valid
-const _SCHEMA_TYPE_MAP = Dict{String, Vector{Type}}(
-    "string"  => [String, SubString],
-    "integer" => [Int, Int8, Int16, Int32, Int64, Int128, UInt, UInt8, UInt16, UInt32, UInt64],
-    "number"  => [Int, Int8, Int16, Int32, Int64, Int128, UInt, UInt8, UInt16, UInt32, UInt64,
-                  Float16, Float32, Float64],
+const _SCHEMA_TYPE_MAP = Dict{String,Vector{Type}}(
+    "string" => [String, SubString],
+    "integer" =>
+        [Int, Int8, Int16, Int32, Int64, Int128, UInt, UInt8, UInt16, UInt32, UInt64],
+    "number" => [
+        Int,
+        Int8,
+        Int16,
+        Int32,
+        Int64,
+        Int128,
+        UInt,
+        UInt8,
+        UInt16,
+        UInt32,
+        UInt64,
+        Float16,
+        Float32,
+        Float64,
+    ],
     "boolean" => [Bool],
-    "array"   => [Array, Vector],
-    "object"  => [Dict, AbstractDict],
+    "array" => [Array, Vector],
+    "object" => [Dict, AbstractDict],
 )
 
 # Validate args against the tool's JSON schema.
 # Returns nothing if valid, or an error string describing the first problem found.
-function _validate_tool_args(tool::AbstractTool, args::Dict{Symbol, <:Any})::Union{Nothing, String}
-    params     = tool.parameters
+function _validate_tool_args(
+    tool::AbstractTool, args::Dict{Symbol,<:Any}
+)::Union{Nothing,String}
+    params = tool.parameters
     properties = get(params, "properties", Dict())
-    required   = get(params, "required",   String[])
+    required = get(params, "required", String[])
 
     # Check required fields are present
     for req in required
@@ -306,7 +336,7 @@ end
 # Internal: call a tool's callable using parameter order from the schema.
 # We use the `required` list (which preserves declaration order) rather than
 # re-reading the method signature, avoiding arg-name mangling in test runners.
-function _call_tool(tool::AbstractTool, args::Dict{Symbol, <:Any})
+function _call_tool(tool::AbstractTool, args::Dict{Symbol,<:Any})
     # Validate args against the JSON schema before dispatching
     err = _validate_tool_args(tool, args)
     isnothing(err) || return "ToolValidationError: $(err)"
@@ -318,8 +348,7 @@ function _call_tool(tool::AbstractTool, args::Dict{Symbol, <:Any})
     m = first(methods(tool.callable))
     if m.nargs == 2   # 1 explicit arg (nargs includes implicit `#self#`)
         sig = Base.unwrap_unionall(m.sig)
-        if length(sig.parameters) >= 2 &&
-                sig.parameters[2] <: Dict
+        if length(sig.parameters) >= 2 && sig.parameters[2] <: Dict
             return tool.callable(args)
         end
     end
@@ -328,7 +357,7 @@ function _call_tool(tool::AbstractTool, args::Dict{Symbol, <:Any})
     ordered_names = if haskey(params, "required")
         Symbol.(params["required"])
     else
-        sort(collect(keys(params["properties"]))) .|> Symbol
+        Symbol.(sort(collect(keys(params["properties"]))))
     end
 
     positional = [args[k] for k in ordered_names if haskey(args, k)]

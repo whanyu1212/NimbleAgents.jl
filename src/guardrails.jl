@@ -53,7 +53,7 @@ struct Modify
     value::String
 end
 
-const GuardrailResult = Union{Pass, Block, Modify}
+const GuardrailResult = Union{Pass,Block,Modify}
 
 # ── Guardrail ─────────────────────────────────────────────────────────────────
 
@@ -103,9 +103,9 @@ agent = Agent(
 ```
 """
 struct Guardrail
-    name  ::String
-    check ::Function
-    on    ::Symbol   # :input or :output
+    name::String
+    check::Function
+    on::Symbol   # :input or :output
 
     function Guardrail(; name::String, check::Function, on::Symbol=:input)
         on in (:input, :output) ||
@@ -121,13 +121,17 @@ end
 # GuardrailBlocked exception to be caught by run!.
 
 struct GuardrailBlocked <: Exception
-    guardrail_name ::String
-    reason         ::String
+    guardrail_name::String
+    reason::String
 end
 
-function _run_guardrails(guardrails::Vector{Guardrail}, phase::Symbol,
-                         value::String, agent_name::String,
-                         verbose::Bool)::String
+function _run_guardrails(
+    guardrails::Vector{Guardrail},
+    phase::Symbol,
+    value::String,
+    agent_name::String,
+    verbose::Bool,
+)::String
     current = value
     for g in guardrails
         g.on == phase || continue
@@ -135,13 +139,13 @@ function _run_guardrails(guardrails::Vector{Guardrail}, phase::Symbol,
             g.check(current)
         catch e
             # Guardrail errors are treated as blocks to fail safe
-            throw(GuardrailBlocked(g.name,
-                "Guardrail error: $(sprint(showerror, e))"))
+            throw(GuardrailBlocked(g.name, "Guardrail error: $(sprint(showerror, e))"))
         end
         if result isa Pass
             continue
         elseif result isa Block
-            verbose && println("[$(agent_name)] guardrail '$(g.name)' blocked: $(result.reason)")
+            verbose &&
+                println("[$(agent_name)] guardrail '$(g.name)' blocked: $(result.reason)")
             throw(GuardrailBlocked(g.name, result.reason))
         elseif result isa Modify
             verbose && println("[$(agent_name)] guardrail '$(g.name)' modified $(phase)")

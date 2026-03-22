@@ -11,7 +11,7 @@ using Mocking
     end
 
     # ── Handoff struct ────────────────────────────────────────────────────────
-    target  = Agent(name="Target", instructions="I am the target.")
+    target = Agent(name="Target", instructions="I am the target.")
     starter = Agent(name="Starter", instructions="I am the starter.")
 
     h = Handoff(target, "please handle this")
@@ -70,24 +70,24 @@ using Mocking
 
     # ── Each agent has independent tools / hooks / instructions ───────────────
     fired = Ref(false)
-    hooks_a = AgentHooks(on_complete = (ag, _) -> (fired[] = true))
+    hooks_a = AgentHooks(on_complete=(ag, _) -> (fired[] = true))
 
     agent_a = Agent(
-        name         = "AgentA",
-        instructions = "Instructions for A.",
-        tools        = [echo_stub_tool],
-        hooks        = hooks_a,
+        name="AgentA",
+        instructions="Instructions for A.",
+        tools=[echo_stub_tool],
+        hooks=hooks_a,
     )
     agent_b = Agent(
-        name         = "AgentB",
-        instructions = "Instructions for B.",
-        tools        = Tool[],   # no tools
+        name="AgentB",
+        instructions="Instructions for B.",
+        tools=Tool[],   # no tools
     )
 
-    @test agent_a.name         == "AgentA"
+    @test agent_a.name == "AgentA"
     @test agent_a.instructions == "Instructions for A."
     @test length(agent_a.tools) == 1
-    @test agent_b.name         == "AgentB"
+    @test agent_b.name == "AgentB"
     @test isempty(agent_b.tools)
 
     # Hooks are per-agent — agent_b's complete hook does not set fired[]
@@ -142,16 +142,16 @@ end
         @test length(stripped) == length(msgs)
 
         # :strip_tools with actual tool messages
-        tm = PT.ToolMessage(content=nothing, raw="", tool_call_id="c1", name="foo",
-                            args=Dict{Symbol,Any}())
-        atr = PT.AIToolRequest(; tool_calls=[tm], content="", tokens=(5,5), elapsed=0.1)
+        tm = PT.ToolMessage(
+            content=nothing, raw="", tool_call_id="c1", name="foo", args=Dict{Symbol,Any}()
+        )
+        atr = PT.AIToolRequest(; tool_calls=[tm], content="", tokens=(5, 5), elapsed=0.1)
         msgs_with_tools = PT.AbstractMessage[
-            PT.UserMessage("hello"),
-            atr,
-            tm,
-            PT.AIMessage(content="done"),
+            PT.UserMessage("hello"), atr, tm, PT.AIMessage(content="done")
         ]
-        stripped2 = NimbleAgents._apply_handoff_filter(HandoffFilter(:strip_tools), msgs_with_tools)
+        stripped2 = NimbleAgents._apply_handoff_filter(
+            HandoffFilter(:strip_tools), msgs_with_tools
+        )
         @test length(stripped2) == 2
         @test stripped2[1] isa PT.UserMessage
         @test stripped2[2] isa PT.AIMessage
@@ -171,7 +171,9 @@ end
         @test isempty(empty_back)
 
         # :custom function
-        only_user = HandoffFilter(h -> PT.AbstractMessage[m for m in h if m isa PT.UserMessage])
+        only_user = HandoffFilter(
+            h -> PT.AbstractMessage[m for m in h if m isa PT.UserMessage]
+        )
         user_msgs = NimbleAgents._apply_handoff_filter(only_user, msgs)
         @test length(user_msgs) == 2
         @test all(m -> m isa PT.UserMessage, user_msgs)
@@ -206,21 +208,26 @@ end
             if occursin("APPROVED", last_user) || call_count[] >= 3
                 push!(conv, _ai_msg_lp("APPROVED: looks good"))
             else
-                push!(conv, _ai_msg_lp("Here is the code: fib(n) = n < 2 ? n : fib(n-1)+fib(n-2)"))
+                push!(
+                    conv,
+                    _ai_msg_lp("Here is the code: fib(n) = n < 2 ? n : fib(n-1)+fib(n-2)"),
+                )
             end
             conv
         end
 
         apply(patch) do
-            coder    = Agent(name="Coder",    instructions="Write code.")
-            reviewer = Agent(name="Reviewer", instructions="Review code. Say APPROVED if good.")
+            coder = Agent(name="Coder", instructions="Write code.")
+            reviewer = Agent(
+                name="Reviewer", instructions="Review code. Say APPROVED if good."
+            )
 
             result = loop_pipeline!(
                 [coder, reviewer],
                 "Write fibonacci";
-                max_rounds = 5,
-                stop_when  = (agent, result) -> occursin("APPROVED", string(result)),
-                verbose    = false,
+                max_rounds=5,
+                stop_when=(agent, result) -> occursin("APPROVED", string(result)),
+                verbose=false,
             )
             @test occursin("APPROVED", string(result))
         end
@@ -242,9 +249,9 @@ end
             result = loop_pipeline!(
                 [a1, a2],
                 "go";
-                max_rounds = 2,
-                stop_when  = (_, _) -> false,  # never stop
-                verbose    = false,
+                max_rounds=2,
+                stop_when=(_, _) -> false,  # never stop
+                verbose=false,
             )
             # 2 rounds × 2 agents = 4 calls
             @test round_count[] == 4
@@ -269,10 +276,10 @@ end
             result = loop_pipeline!(
                 [a1],
                 "task";
-                max_rounds = 1,
-                stop_when  = (_, _) -> true,
-                session    = session,
-                verbose    = false,
+                max_rounds=1,
+                stop_when=(_, _) -> true,
+                session=session,
+                verbose=false,
             )
             @test result == "done"
             @test length(session.events) >= 1

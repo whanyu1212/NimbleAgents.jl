@@ -39,9 +39,8 @@ end
 
 # ── Hooks ─────────────────────────────────────────────────────────────────────
 
-hooks = AgentHooks(
-
-    before_llm_call = (agent, iteration, msgs) -> begin
+hooks = AgentHooks(;
+    before_llm_call=(agent, iteration, msgs) -> begin
         divider()
         println("  [before_llm_call] #$(iteration)")
         println("     agent    : $(agent.name)")
@@ -51,8 +50,7 @@ hooks = AgentHooks(
         divider()
         msgs
     end,
-
-    after_llm_call = (agent, iteration, response) -> begin
+    after_llm_call=(agent, iteration, response) -> begin
         println("  [after_llm_call] #$(iteration)")
         println("     type          : $(nameof(typeof(response)))")
         println("     finish_reason : $(something(response.finish_reason, "—"))")
@@ -61,25 +59,24 @@ hooks = AgentHooks(
             println("     tokens in/out : $(usage.input_tokens) / $(usage.output_tokens)")
         end
         if response isa NimbleAgents.PT.AIToolRequest && !isempty(response.tool_calls)
-            println("     tool_calls    : $(join([tc.name for tc in response.tool_calls], ", "))")
+            println(
+                "     tool_calls    : $(join([tc.name for tc in response.tool_calls], ", "))",
+            )
         end
         println()
     end,
-
-    on_tool_call = (agent, name, args) -> begin
+    on_tool_call=(agent, name, args) -> begin
         println("  [on_tool_call]")
         println("     tool : $(name)")
         println("     args : $(pretty_args(args))")
     end,
-
-    on_tool_result = (agent, name, result) -> begin
+    on_tool_result=(agent, name, result) -> begin
         println("  [on_tool_result]")
         println("     tool   : $(name)")
         println("     result : $(repr(result))")
         println()
     end,
-
-    on_complete = (agent, result) -> begin
+    on_complete=(agent, result) -> begin
         divider('═')
         println("  [on_complete]")
         println("     agent  : $(agent.name)")
@@ -90,12 +87,12 @@ hooks = AgentHooks(
 
 # ── Agent ─────────────────────────────────────────────────────────────────────
 
-agent = Agent(
-    name         = "MathBot",
-    instructions = """You are a precise math assistant. Always use the available
+agent = Agent(;
+    name="MathBot",
+    instructions="""You are a precise math assistant. Always use the available
 tools to compute answers — never calculate in your head.""",
-    tools        = [add_tool, multiply_tool, factorial_tool],
-    hooks        = hooks,
+    tools=[add_tool, multiply_tool, factorial_tool],
+    hooks=hooks,
 )
 
 # ── Multi-turn conversation ───────────────────────────────────────────────────

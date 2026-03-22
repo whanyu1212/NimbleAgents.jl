@@ -12,8 +12,7 @@ end
 @testset "SQLiteMemoryService — add / search roundtrip" begin
     mem = SQLiteMemoryService(joinpath(mktempdir(), "test_mem.db"))
 
-    entry = add_memory!(mem, "User prefers dark mode";
-        user_id="alice", app_name="App")
+    entry = add_memory!(mem, "User prefers dark mode"; user_id="alice", app_name="App")
     @test entry.content == "User prefers dark mode"
     @test entry.user_id == "alice"
     @test !isempty(entry.id)
@@ -29,7 +28,7 @@ end
 @testset "SQLiteMemoryService — metadata JSON roundtrip" begin
     mem = SQLiteMemoryService(joinpath(mktempdir(), "test_mem.db"))
 
-    meta = Dict{String, Any}("category" => "preference", "priority" => 1)
+    meta = Dict{String,Any}("category" => "preference", "priority" => 1)
     entry = add_memory!(mem, "Uses vim"; user_id="u", app_name="a", metadata=meta)
 
     results = search_memory(mem, "vim"; user_id="u", app_name="a")
@@ -74,7 +73,7 @@ end
     mem = SQLiteMemoryService(joinpath(mktempdir(), "test_mem.db"))
 
     add_memory!(mem, "A"; user_id="alice", app_name="App1")
-    add_memory!(mem, "B"; user_id="bob",   app_name="App1")
+    add_memory!(mem, "B"; user_id="bob", app_name="App1")
     add_memory!(mem, "C"; user_id="alice", app_name="App2")
 
     @test length(list_memories(mem)) == 3

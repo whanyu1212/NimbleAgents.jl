@@ -2,9 +2,14 @@
 # test_rate_limit.jl — unit tests for rate limiting
 ###############################################################################
 
-using NimbleAgents: RateLimiter, acquire!, _acquire_rate_limit!,
-                    set_rate_limit!, remove_rate_limit!,
-                    _rate_limiters, _rate_limiters_lock
+using NimbleAgents:
+    RateLimiter,
+    acquire!,
+    _acquire_rate_limit!,
+    set_rate_limit!,
+    remove_rate_limit!,
+    _rate_limiters,
+    _rate_limiters_lock
 
 @testset "RateLimiter — construction" begin
     rl = RateLimiter(10)

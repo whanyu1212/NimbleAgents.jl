@@ -41,39 +41,43 @@ end
 
 const DANGEROUS_TOOLS = ["send_email", "delete_file"]
 
-agent = Agent(
-    name         = "OpsBot",
-    instructions = """
-    You are an operations assistant. You can read files, send emails,
-    and delete files. Always complete the user's request.
-    """,
-    tools = [send_email, delete_file, read_file],
-    model = "gpt-5.4-nano-2026-03-17",
-    hooks = AgentHooks(
-        should_interrupt = (name, args) -> name in DANGEROUS_TOOLS
-    ),
+agent = Agent(;
+    name="OpsBot",
+    instructions="""
+  You are an operations assistant. You can read files, send emails,
+  and delete files. Always complete the user's request.
+  """,
+    tools=[send_email, delete_file, read_file],
+    model="gpt-5.4-nano-2026-03-17",
+    hooks=AgentHooks(; should_interrupt=(name, args) -> name in DANGEROUS_TOOLS),
 )
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Example 1 — approve from another thread (simulates a web handler)
 # ══════════════════════════════════════════════════════════════════════════════
 
-tprintln(Panel(
-    "Example 1 — approve from another thread\n" *
-    "Simulates a web handler putting the approval response\n" *
-    "while the agent is paused waiting.",
-    title = "Channel HITL", style = "cyan", padding = (1, 2),
-))
+tprintln(
+    Panel(
+        "Example 1 — approve from another thread\n" *
+        "Simulates a web handler putting the approval response\n" *
+        "while the agent is paused waiting.";
+        title="Channel HITL",
+        style="cyan",
+        padding=(1, 2),
+    ),
+)
 
-ch1      = Channel{String}(1)
-session1 = Session(app_name="hitl_channel", user_id="user")
+ch1 = Channel{String}(1)
+session1 = Session(; app_name="hitl_channel", user_id="user")
 
 # Agent runs in background — does not block this thread
-task1 = Threads.@spawn run!(agent,
+task1 = Threads.@spawn run!(
+    agent,
     "Send a status update to boss@company.com";
-    session          = session1,
-    verbose          = false,
-    approval_channel = ch1)
+    session=session1,
+    verbose=false,
+    approval_channel=ch1,
+)
 
 # Simulate web handler receiving approval after a short delay
 sleep(0.5)
@@ -87,21 +91,27 @@ println(result1, "\n")
 # Example 2 — redirect instead of approve
 # ══════════════════════════════════════════════════════════════════════════════
 
-tprintln(Panel(
-    "Example 2 — redirect instead of approve\n" *
-    "Human rejects and gives new instructions.\n" *
-    "Agent re-plans without re-running from scratch.",
-    title = "Channel HITL", style = "yellow", padding = (1, 2),
-))
+tprintln(
+    Panel(
+        "Example 2 — redirect instead of approve\n" *
+        "Human rejects and gives new instructions.\n" *
+        "Agent re-plans without re-running from scratch.";
+        title="Channel HITL",
+        style="yellow",
+        padding=(1, 2),
+    ),
+)
 
-ch2      = Channel{String}(1)
-session2 = Session(app_name="hitl_channel", user_id="user")
+ch2 = Channel{String}(1)
+session2 = Session(; app_name="hitl_channel", user_id="user")
 
-task2 = Threads.@spawn run!(agent,
+task2 = Threads.@spawn run!(
+    agent,
     "Delete /prod/old_backup.tar.gz";
-    session          = session2,
-    verbose          = false,
-    approval_channel = ch2)
+    session=session2,
+    verbose=false,
+    approval_channel=ch2,
+)
 
 sleep(0.5)
 tprintln("[dim]→ human rejects delete, redirects to read instead...[/dim]")
@@ -114,22 +124,28 @@ println(result2, "\n")
 # Example 3 — timeout (no one responds)
 # ══════════════════════════════════════════════════════════════════════════════
 
-tprintln(Panel(
-    "Example 3 — approval timeout\n" *
-    "No response arrives within the timeout window.\n" *
-    "Agent throws ApprovalTimeout.",
-    title = "Channel HITL", style = "red", padding = (1, 2),
-))
+tprintln(
+    Panel(
+        "Example 3 — approval timeout\n" *
+        "No response arrives within the timeout window.\n" *
+        "Agent throws ApprovalTimeout.";
+        title="Channel HITL",
+        style="red",
+        padding=(1, 2),
+    ),
+)
 
-ch3      = Channel{String}(1)
-session3 = Session(app_name="hitl_channel", user_id="user")
+ch3 = Channel{String}(1)
+session3 = Session(; app_name="hitl_channel", user_id="user")
 
-task3 = Threads.@spawn run!(agent,
+task3 = Threads.@spawn run!(
+    agent,
     "Send the quarterly report to ceo@company.com";
-    session          = session3,
-    verbose          = false,
-    approval_channel = ch3,
-    approval_timeout = 3.0)   # short timeout for demo
+    session=session3,
+    verbose=false,
+    approval_channel=ch3,
+    approval_timeout=3.0,
+)   # short timeout for demo
 
 tprintln("[dim]→ no one responds — waiting for timeout...[/dim]")
 
@@ -149,20 +165,22 @@ end
 # Example 4 — abort by closing the channel
 # ══════════════════════════════════════════════════════════════════════════════
 
-tprintln(Panel(
-    "Example 4 — abort by closing the channel\n" *
-    "Closing the channel signals the agent to stop immediately.",
-    title = "Channel HITL", style = "magenta", padding = (1, 2),
-))
+tprintln(
+    Panel(
+        "Example 4 — abort by closing the channel\n" *
+        "Closing the channel signals the agent to stop immediately.";
+        title="Channel HITL",
+        style="magenta",
+        padding=(1, 2),
+    ),
+)
 
-ch4      = Channel{String}(1)
-session4 = Session(app_name="hitl_channel", user_id="user")
+ch4 = Channel{String}(1)
+session4 = Session(; app_name="hitl_channel", user_id="user")
 
-task4 = Threads.@spawn run!(agent,
-    "Delete /prod/users.db";
-    session          = session4,
-    verbose          = false,
-    approval_channel = ch4)
+task4 = Threads.@spawn run!(
+    agent, "Delete /prod/users.db"; session=session4, verbose=false, approval_channel=ch4
+)
 
 sleep(0.5)
 tprintln("[dim]→ human closes channel to abort...[/dim]")

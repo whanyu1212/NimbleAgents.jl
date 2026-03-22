@@ -12,7 +12,7 @@
 #   save_eval(report, "eval_results.json")
 ###############################################################################
 
-import JSON3
+using JSON3: JSON3
 
 # ── Structs ──────────────────────────────────────────────────────────────────
 
@@ -29,19 +29,19 @@ A single evaluation test case.
 - `tags::Vector{String}`: Tags for filtering/grouping results.
 """
 struct EvalCase
-    input          ::String
-    expected       ::Union{String, Nothing}
-    expected_tools ::Union{Vector{String}, Nothing}
-    reference      ::Union{Dict{String, Any}, Nothing}
-    tags           ::Vector{String}
+    input::String
+    expected::Union{String,Nothing}
+    expected_tools::Union{Vector{String},Nothing}
+    reference::Union{Dict{String,Any},Nothing}
+    tags::Vector{String}
 end
 
 function EvalCase(;
-    input          ::String,
-    expected       ::Union{String, Nothing}           = nothing,
-    expected_tools ::Union{Vector{String}, Nothing}   = nothing,
-    reference      ::Union{Dict{String, Any}, Nothing} = nothing,
-    tags           ::Vector{String}                    = String[],
+    input::String,
+    expected::Union{String,Nothing}=nothing,
+    expected_tools::Union{Vector{String},Nothing}=nothing,
+    reference::Union{Dict{String,Any},Nothing}=nothing,
+    tags::Vector{String}=String[],
 )
     EvalCase(input, expected, expected_tools, reference, tags)
 end
@@ -61,13 +61,13 @@ Result for a single eval case.
 - `elapsed::Float64`: Wall-clock time for this case.
 """
 struct EvalResult
-    case    ::EvalCase
-    output  ::Any
-    trace   ::Union{Trace, Nothing}
-    scores  ::Dict{String, Float64}
-    passed  ::Bool
-    error   ::Union{String, Nothing}
-    elapsed ::Float64
+    case::EvalCase
+    output::Any
+    trace::Union{Trace,Nothing}
+    scores::Dict{String,Float64}
+    passed::Bool
+    error::Union{String,Nothing}
+    elapsed::Float64
 end
 
 """
@@ -85,19 +85,18 @@ total cost, and total duration from the individual results.
 - `timestamp::Float64`: When the report was created.
 """
 struct EvalReport
-    results        ::Vector{EvalResult}
-    pass_rate      ::Float64
-    mean_scores    ::Dict{String, Float64}
-    total_cost     ::Float64
-    total_duration ::Float64
-    timestamp      ::Float64
+    results::Vector{EvalResult}
+    pass_rate::Float64
+    mean_scores::Dict{String,Float64}
+    total_cost::Float64
+    total_duration::Float64
+    timestamp::Float64
 end
 
 function EvalReport(results::Vector{EvalResult})
     n = length(results)
     if n == 0
-        return EvalReport(results, 0.0, Dict{String, Float64}(),
-                          0.0, 0.0, time())
+        return EvalReport(results, 0.0, Dict{String,Float64}(), 0.0, 0.0, time())
     end
 
     pass_rate = count(r -> r.passed, results) / n
@@ -107,7 +106,7 @@ function EvalReport(results::Vector{EvalResult})
     for r in results
         union!(all_keys, keys(r.scores))
     end
-    mean_scores = Dict{String, Float64}()
+    mean_scores = Dict{String,Float64}()
     for k in all_keys
         vals = [get(r.scores, k, 0.0) for r in results]
         mean_scores[k] = sum(vals) / n
@@ -128,8 +127,8 @@ Wrapper for a metric closure (e.g. from a factory like `cost_budget`) that
 carries a display name. Made callable: `(m::NamedMetric)(case, output, trace)`.
 """
 struct NamedMetric
-    name ::String
-    fn   ::Function
+    name::String
+    fn::Function
 end
 
 (m::NamedMetric)(case::EvalCase, output, trace) = m.fn(case, output, trace)
@@ -238,7 +237,7 @@ end
 Factory: returns a metric that scores 1.0 if `trace.total_cost <= max_cost`, else 0.0.
 """
 function cost_budget(max_cost::Real)
-    NamedMetric("cost_budget($(max_cost))", function(case, output, trace)
+    NamedMetric("cost_budget($(max_cost))", function (case, output, trace)
         isnothing(trace) && return 0.0
         trace.total_cost <= max_cost ? 1.0 : 0.0
     end)
@@ -250,10 +249,12 @@ end
 Factory: returns a metric that scores 1.0 if `trace.duration <= max_seconds`, else 0.0.
 """
 function latency_budget(max_seconds::Real)
-    NamedMetric("latency_budget($(max_seconds))", function(case, output, trace)
-        isnothing(trace) && return 0.0
-        trace.duration <= max_seconds ? 1.0 : 0.0
-    end)
+    NamedMetric(
+        "latency_budget($(max_seconds))", function (case, output, trace)
+            isnothing(trace) && return 0.0
+            trace.duration <= max_seconds ? 1.0 : 0.0
+        end
+    )
 end
 
 # ── Runner ───────────────────────────────────────────────────────────────────
@@ -273,19 +274,22 @@ and return an `EvalReport`.
 - `pass_threshold::Float64`: Minimum score for each metric to count as passed.
   Default: `1.0`.
 """
-function run_eval(agent::Agent, cases::Vector{EvalCase};
-                  metrics = [exact_match, tool_trajectory],
-                  verbose::Bool = false,
-                  pass_threshold::Float64 = 1.0)
+function run_eval(
+    agent::Agent,
+    cases::Vector{EvalCase};
+    metrics=[exact_match, tool_trajectory],
+    verbose::Bool=false,
+    pass_threshold::Float64=1.0,
+)
     results = EvalResult[]
 
     for case in cases
-        session = Session(app_name="eval")
+        session = Session(; app_name="eval")
         t0 = time()
         output = nothing
         trace = nothing
         err = nothing
-        scores = Dict{String, Float64}()
+        scores = Dict{String,Float64}()
 
         try
             output = run!(agent, case.input; session=session, verbose=verbose)
@@ -385,34 +389,34 @@ end
 Serialise an `EvalReport` to a JSON file.
 """
 function save_eval(report::EvalReport, path::String)
-    data = Dict{String, Any}(
-        "pass_rate"      => report.pass_rate,
-        "mean_scores"    => report.mean_scores,
-        "total_cost"     => report.total_cost,
+    data = Dict{String,Any}(
+        "pass_rate" => report.pass_rate,
+        "mean_scores" => report.mean_scores,
+        "total_cost" => report.total_cost,
         "total_duration" => report.total_duration,
-        "timestamp"      => report.timestamp,
-        "results"        => map(report.results) do r
+        "timestamp" => report.timestamp,
+        "results" => map(report.results) do r
             trace_summary = if isnothing(r.trace)
                 nothing
             else
-                Dict{String, Any}(
-                    "total_cost"   => r.trace.total_cost,
-                    "duration"     => r.trace.duration,
+                Dict{String,Any}(
+                    "total_cost" => r.trace.total_cost,
+                    "duration" => r.trace.duration,
                     "total_tokens" => r.trace.total_tokens,
-                    "agents"       => r.trace.agents,
+                    "agents" => r.trace.agents,
                 )
             end
-            Dict{String, Any}(
-                "input"          => r.case.input,
-                "expected"       => r.case.expected,
+            Dict{String,Any}(
+                "input" => r.case.input,
+                "expected" => r.case.expected,
                 "expected_tools" => r.case.expected_tools,
-                "tags"           => r.case.tags,
-                "output"         => isnothing(r.output) ? nothing : string(r.output),
-                "scores"         => r.scores,
-                "passed"         => r.passed,
-                "error"          => r.error,
-                "elapsed"        => r.elapsed,
-                "trace"          => trace_summary,
+                "tags" => r.case.tags,
+                "output" => isnothing(r.output) ? nothing : string(r.output),
+                "scores" => r.scores,
+                "passed" => r.passed,
+                "error" => r.error,
+                "elapsed" => r.elapsed,
+                "trace" => trace_summary,
             )
         end,
     )
@@ -429,7 +433,7 @@ end
 
 Load a previously saved eval report from a JSON file.
 """
-function load_eval(path::String)::Dict{String, Any}
+function load_eval(path::String)::Dict{String,Any}
     isfile(path) || error("Eval file not found: $(path)")
-    Dict{String, Any}(JSON3.read(read(path, String), Dict{String, Any}))
+    Dict{String,Any}(JSON3.read(read(path, String), Dict{String,Any}))
 end

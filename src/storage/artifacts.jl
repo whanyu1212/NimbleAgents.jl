@@ -10,7 +10,7 @@
 # Sessions serialise to JSON via JSONSessionStore (pluggable).
 ###############################################################################
 
-import JSON3
+using JSON3: JSON3
 
 # ── Artifact ──────────────────────────────────────────────────────────────────
 
@@ -30,55 +30,65 @@ A named, typed output produced by an agent during a session.
 - `created_at::Float64`: `time()` when registered.
 """
 struct Artifact
-    id          ::String
-    session_id  ::String
-    name        ::String
-    type        ::Symbol
+    id::String
+    session_id::String
+    name::String
+    type::Symbol
     content_type::String
-    path        ::String
-    metadata    ::Dict{String, Any}
-    created_at  ::Float64
+    path::String
+    metadata::Dict{String,Any}
+    created_at::Float64
 end
 
 function Artifact(;
-    session_id   ::String,
-    name         ::String,
-    type         ::Symbol         = :file,
-    content_type ::String         = "application/octet-stream",
-    path         ::String,
-    metadata     ::Dict{String,Any} = Dict{String,Any}(),
+    session_id::String,
+    name::String,
+    type::Symbol=:file,
+    content_type::String="application/octet-stream",
+    path::String,
+    metadata::Dict{String,Any}=Dict{String,Any}(),
 )
     Artifact(
         string(Base.UUID(rand(UInt128))),
-        session_id, name, type, content_type, path, metadata, time(),
+        session_id,
+        name,
+        type,
+        content_type,
+        path,
+        metadata,
+        time(),
     )
 end
 
 # Infer MIME type from file extension
 function _mime_for_path(path::String)::String
     ext = lowercase(splitext(path)[2])
-    get(Dict(
-        ".png"  => "image/png",
-        ".jpg"  => "image/jpeg",
-        ".jpeg" => "image/jpeg",
-        ".svg"  => "image/svg+xml",
-        ".pdf"  => "application/pdf",
-        ".csv"  => "text/csv",
-        ".json" => "application/json",
-        ".txt"  => "text/plain",
-        ".md"   => "text/markdown",
-        ".jl"   => "text/x-julia",
-        ".py"   => "text/x-python",
-        ".html" => "text/html",
-    ), ext, "application/octet-stream")
+    get(
+        Dict(
+            ".png" => "image/png",
+            ".jpg" => "image/jpeg",
+            ".jpeg" => "image/jpeg",
+            ".svg" => "image/svg+xml",
+            ".pdf" => "application/pdf",
+            ".csv" => "text/csv",
+            ".json" => "application/json",
+            ".txt" => "text/plain",
+            ".md" => "text/markdown",
+            ".jl" => "text/x-julia",
+            ".py" => "text/x-python",
+            ".html" => "text/html",
+        ),
+        ext,
+        "application/octet-stream",
+    )
 end
 
 # Infer artifact type from MIME
 function _type_for_mime(mime::String)::Symbol
-    startswith(mime, "image/")  && return :plot
-    mime == "text/csv"          && return :data
-    mime == "application/json"  && return :data
-    startswith(mime, "text/")   && return :text
+    startswith(mime, "image/") && return :plot
+    mime == "text/csv" && return :data
+    mime == "application/json" && return :data
+    startswith(mime, "text/") && return :text
     :file
 end
 
@@ -114,7 +124,7 @@ load(store, session.id)  # → same Session object
 ```
 """
 struct InMemorySessionStore <: AbstractSessionStore
-    sessions     ::Dict{String, Session}
+    sessions::Dict{String,Session}
     artifacts_dir::String
     InMemorySessionStore() = new(Dict{String,Session}(), mktempdir())
 end
@@ -127,7 +137,7 @@ function save!(store::InMemorySessionStore, session::Session)
     return session
 end
 
-function load(store::InMemorySessionStore, session_id::String)::Union{Session, Nothing}
+function load(store::InMemorySessionStore, session_id::String)::Union{Session,Nothing}
     get(store.sessions, session_id, nothing)
 end
 
@@ -139,12 +149,16 @@ function Base.delete!(store::InMemorySessionStore, session_id::String)
 end
 
 # list with optional filtering by app_name and/or user_id
-function list(store::InMemorySessionStore;
-              app_name::Union{String,Nothing} = nothing,
-              user_id ::Union{String,Nothing} = nothing)::Vector{String}
-    [id for (id, s) in store.sessions
-        if (isnothing(app_name) || s.app_name == app_name) &&
-           (isnothing(user_id)  || s.user_id  == user_id)]
+function list(
+    store::InMemorySessionStore;
+    app_name::Union{String,Nothing}=nothing,
+    user_id::Union{String,Nothing}=nothing,
+)::Vector{String}
+    [
+        id for
+        (id, s) in store.sessions if (isnothing(app_name) || s.app_name == app_name) &&
+            (isnothing(user_id) || s.user_id == user_id)
+    ]
 end
 
 # ── register_artifact! ────────────────────────────────────────────────────────
@@ -160,21 +174,21 @@ Called automatically by `run!` for `return_artifact=true` tools, by
 `eval_julia_tool` for saved plots, and by `save_artifact_tool`.
 """
 function register_artifact!(
-    session ::Session,
-    path    ::String;
-    name    ::String                               = basename(path),
-    store   ::Union{AbstractSessionStore, Nothing} = nothing,
-    metadata::Dict{String,Any}                    = Dict{String,Any}(),
+    session::Session,
+    path::String;
+    name::String=basename(path),
+    store::Union{AbstractSessionStore,Nothing}=nothing,
+    metadata::Dict{String,Any}=Dict{String,Any}(),
 )::Artifact
-    mime     = _mime_for_path(path)
+    mime = _mime_for_path(path)
     art_type = _type_for_mime(mime)
 
     # Copy into artifact store if one is configured
     dest_path = if !isnothing(store) && isfile(path)
         dest_dir = joinpath(store_artifacts_dir(store), session.id)
         mkpath(dest_dir)
-        art_id   = string(Base.UUID(rand(UInt128)))
-        dest     = joinpath(dest_dir, art_id * splitext(path)[2])
+        art_id = string(Base.UUID(rand(UInt128)))
+        dest = joinpath(dest_dir, art_id * splitext(path)[2])
         cp(path, dest; force=true)
         dest
     else
@@ -182,12 +196,12 @@ function register_artifact!(
     end
 
     artifact = Artifact(;
-        session_id   = session.id,
-        name         = name,
-        type         = art_type,
-        content_type = mime,
-        path         = dest_path,
-        metadata     = metadata,
+        session_id=session.id,
+        name=name,
+        type=art_type,
+        content_type=mime,
+        path=dest_path,
+        metadata=metadata,
     )
     push!(session.artifacts, artifact)
     artifact
@@ -226,10 +240,13 @@ function _msg_to_dict(msg::PT.AbstractMessage)::Dict{String,Any}
     if msg isa PT.AIToolRequest && !isnothing(msg.tool_calls)
         d["tool_calls"] = map(msg.tool_calls) do tc
             Dict{String,Any}(
-                "id"   => tc.id,
+                "id" => tc.id,
                 "name" => tc.name,
-                "args" => isnothing(tc.args) ? Dict{String,Any}() :
-                          Dict{String,Any}(string(k) => v for (k,v) in tc.args),
+                "args" => if isnothing(tc.args)
+                    Dict{String,Any}()
+                else
+                    Dict{String,Any}(string(k) => v for (k, v) in tc.args)
+                end,
             )
         end
     end
@@ -246,7 +263,7 @@ end
 # Reconstruct a PT.AbstractMessage from a plain Dict.
 function _dict_to_msg(d::Dict)::PT.AbstractMessage
     type_name = get(d, "_type", "UserMessage")
-    content   = get(d, "content", "")
+    content = get(d, "content", "")
     if type_name == "UserMessage"
         PT.UserMessage(content)
     elseif type_name == "AIMessage"
@@ -255,20 +272,16 @@ function _dict_to_msg(d::Dict)::PT.AbstractMessage
         PT.SystemMessage(content)
     elseif type_name == "AIToolRequest"
         tool_calls = map(get(d, "tool_calls", [])) do tc
-            args = Dict{Symbol,Any}(Symbol(k) => v for (k,v) in tc["args"])
-            PT.ToolCall(
-                id   = get(tc, "id", ""),
-                name = tc["name"],
-                args = args,
-            )
+            args = Dict{Symbol,Any}(Symbol(k) => v for (k, v) in tc["args"])
+            PT.ToolCall(; id=get(tc, "id", ""), name=tc["name"], args=args)
         end
         PT.AIToolRequest(; tool_calls, content)
     elseif type_name == "ToolMessage"
-        PT.ToolMessage(
-            content      = content,
-            raw          = something(content, ""),
-            name         = get(d, "name", ""),
-            tool_call_id = get(d, "tool_call_id", ""),
+        PT.ToolMessage(;
+            content=content,
+            raw=something(content, ""),
+            name=get(d, "name", ""),
+            tool_call_id=get(d, "tool_call_id", ""),
         )
     else
         PT.UserMessage(something(content, ""))
@@ -293,14 +306,14 @@ end
 
 function _artifact_to_dict(a::Artifact)::Dict{String,Any}
     Dict{String,Any}(
-        "id"           => a.id,
-        "session_id"   => a.session_id,
-        "name"         => a.name,
-        "type"         => string(a.type),
+        "id" => a.id,
+        "session_id" => a.session_id,
+        "name" => a.name,
+        "type" => string(a.type),
         "content_type" => a.content_type,
-        "path"         => a.path,
-        "metadata"     => a.metadata,
-        "created_at"   => a.created_at,
+        "path" => a.path,
+        "metadata" => a.metadata,
+        "created_at" => a.created_at,
     )
 end
 
@@ -328,13 +341,13 @@ Non-serialisable state values (REPL sandbox, open handles) are silently dropped.
 function save!(store::JSONSessionStore, session::Session)
     path = joinpath(store.dir, session.id * ".json")
     data = Dict{String,Any}(
-        "id"         => session.id,
-        "app_name"   => session.app_name,
-        "user_id"    => session.user_id,
+        "id" => session.id,
+        "app_name" => session.app_name,
+        "user_id" => session.user_id,
         "created_at" => session.created_at,
-        "history"    => _msg_to_dict.(session.history),
-        "state"      => _safe_state(session.state),
-        "artifacts"  => _artifact_to_dict.(session.artifacts),
+        "history" => _msg_to_dict.(session.history),
+        "state" => _safe_state(session.state),
+        "artifacts" => _artifact_to_dict.(session.artifacts),
     )
     write(path, JSON3.write(data))
     return session
@@ -345,25 +358,17 @@ end
 
 Restore a session from disk. Returns `nothing` if not found.
 """
-function load(store::JSONSessionStore, session_id::String)::Union{Session, Nothing}
+function load(store::JSONSessionStore, session_id::String)::Union{Session,Nothing}
     path = joinpath(store.dir, session_id * ".json")
     isfile(path) || return nothing
 
     data = JSON3.read(read(path, String), Dict{String,Any})
 
-    history = PT.AbstractMessage[
-        _dict_to_msg(Dict{String,Any}(d)) for d in data["history"]
-    ]
+    history = PT.AbstractMessage[_dict_to_msg(Dict{String,Any}(d)) for d in data["history"]]
     state = Dict{String,Any}(data["state"])
-    artifacts = Artifact[
-        _dict_to_artifact(Dict{String,Any}(a)) for a in data["artifacts"]
-    ]
+    artifacts = Artifact[_dict_to_artifact(Dict{String,Any}(a)) for a in data["artifacts"]]
 
-    s = Session(
-        id         = data["id"],
-        app_name   = data["app_name"],
-        user_id    = data["user_id"],
-    )
+    s = Session(; id=data["id"], app_name=data["app_name"], user_id=data["user_id"])
     append!(s.history, history)
     merge!(s.state, state)
     append!(s.artifacts, artifacts)
@@ -388,9 +393,11 @@ end
 
 Return all persisted session IDs, optionally filtered by `app_name` and/or `user_id`.
 """
-function list(store::JSONSessionStore;
-              app_name::Union{String,Nothing} = nothing,
-              user_id ::Union{String,Nothing} = nothing)::Vector{String}
+function list(
+    store::JSONSessionStore;
+    app_name::Union{String,Nothing}=nothing,
+    user_id::Union{String,Nothing}=nothing,
+)::Vector{String}
     ids = String[]
     for f in readdir(store.dir)
         endswith(f, ".json") || continue
@@ -405,7 +412,7 @@ function list(store::JSONSessionStore;
                 continue
             end
             (isnothing(app_name) || get(data, "app_name", "") == app_name) &&
-            (isnothing(user_id)  || get(data, "user_id",  "") == user_id)  &&
+                (isnothing(user_id) || get(data, "user_id", "") == user_id) &&
                 push!(ids, splitext(f)[1])
         end
     end

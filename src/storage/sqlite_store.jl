@@ -10,9 +10,9 @@
 #   session = load(store, session_id)
 ###############################################################################
 
-import SQLite
-import DBInterface
-import JSON3
+using SQLite: SQLite
+using DBInterface: DBInterface
+using JSON3: JSON3
 
 """
     SQLiteSessionStore(path; artifacts_dir)
@@ -34,11 +34,10 @@ session = load(store, session.id)
 ```
 """
 struct SQLiteSessionStore <: AbstractSessionStore
-    db           ::SQLite.DB
+    db::SQLite.DB
     artifacts_dir::String
 
-    function SQLiteSessionStore(path::String;
-                                artifacts_dir::Union{String,Nothing} = nothing)
+    function SQLiteSessionStore(path::String; artifacts_dir::Union{String,Nothing}=nothing)
         dir = dirname(path)
         isempty(dir) || mkpath(dir)
         db = SQLite.DB(path)
@@ -56,22 +55,28 @@ store_artifacts_dir(s::SQLiteSessionStore) = s.artifacts_dir
 # ── Schema ────────────────────────────────────────────────────────────────────
 
 function _init_schema!(db::SQLite.DB)
-    DBInterface.execute(db, """
-        CREATE TABLE IF NOT EXISTS sessions (
-            id         TEXT PRIMARY KEY,
-            app_name   TEXT NOT NULL,
-            user_id    TEXT NOT NULL,
-            created_at REAL NOT NULL,
-            history    TEXT NOT NULL DEFAULT '[]',
-            state      TEXT NOT NULL DEFAULT '{}',
-            artifacts  TEXT NOT NULL DEFAULT '[]',
-            updated_at REAL NOT NULL
-        )
-    """)
-    DBInterface.execute(db, """
-        CREATE INDEX IF NOT EXISTS idx_sessions_app_user
-        ON sessions (app_name, user_id)
-    """)
+    DBInterface.execute(
+        db,
+        """
+    CREATE TABLE IF NOT EXISTS sessions (
+        id         TEXT PRIMARY KEY,
+        app_name   TEXT NOT NULL,
+        user_id    TEXT NOT NULL,
+        created_at REAL NOT NULL,
+        history    TEXT NOT NULL DEFAULT '[]',
+        state      TEXT NOT NULL DEFAULT '{}',
+        artifacts  TEXT NOT NULL DEFAULT '[]',
+        updated_at REAL NOT NULL
+    )
+""",
+    )
+    DBInterface.execute(
+        db,
+        """
+    CREATE INDEX IF NOT EXISTS idx_sessions_app_user
+    ON sessions (app_name, user_id)
+""",
+    )
     nothing
 end
 
@@ -84,7 +89,7 @@ function _collect_rows(result)
     rows = NamedTuple[]
     for row in result
         names = propertynames(row)
-        vals  = Tuple(getproperty(row, n) for n in names)
+        vals = Tuple(getproperty(row, n) for n in names)
         push!(rows, NamedTuple{Tuple(names)}(vals))
     end
     rows
@@ -93,50 +98,60 @@ end
 # ── save! ─────────────────────────────────────────────────────────────────────
 
 function save!(store::SQLiteSessionStore, session::Session)
-    history_json   = JSON3.write(_msg_to_dict.(session.history))
-    state_json     = JSON3.write(_safe_state(session.state))
+    history_json = JSON3.write(_msg_to_dict.(session.history))
+    state_json = JSON3.write(_safe_state(session.state))
     artifacts_json = JSON3.write(_artifact_to_dict.(session.artifacts))
 
-    DBInterface.execute(store.db, """
-        INSERT INTO sessions (id, app_name, user_id, created_at, history, state, artifacts, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
-            history    = excluded.history,
-            state      = excluded.state,
-            artifacts  = excluded.artifacts,
-            updated_at = excluded.updated_at
-    """, (session.id, session.app_name, session.user_id, session.created_at,
-          history_json, state_json, artifacts_json, time()))
+    DBInterface.execute(
+        store.db,
+        """
+    INSERT INTO sessions (id, app_name, user_id, created_at, history, state, artifacts, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+        history    = excluded.history,
+        state      = excluded.state,
+        artifacts  = excluded.artifacts,
+        updated_at = excluded.updated_at
+""",
+        (
+            session.id,
+            session.app_name,
+            session.user_id,
+            session.created_at,
+            history_json,
+            state_json,
+            artifacts_json,
+            time(),
+        ),
+    )
 
     return session
 end
 
 # ── load ──────────────────────────────────────────────────────────────────────
 
-function load(store::SQLiteSessionStore, session_id::String)::Union{Session, Nothing}
-    result = DBInterface.execute(store.db,
+function load(store::SQLiteSessionStore, session_id::String)::Union{Session,Nothing}
+    result = DBInterface.execute(
+        store.db,
         "SELECT id, app_name, user_id, created_at, history, state, artifacts FROM sessions WHERE id = ?",
-        (session_id,))
+        (session_id,),
+    )
 
     rows = _collect_rows(result)
     isempty(rows) && return nothing
     row = rows[1]
 
     history = PT.AbstractMessage[
-        _dict_to_msg(Dict{String,Any}(d))
-        for d in JSON3.read(row.history, Vector{Dict{String,Any}})
+        _dict_to_msg(Dict{String,Any}(d)) for
+        d in JSON3.read(row.history, Vector{Dict{String,Any}})
     ]
     state = Dict{String,Any}(JSON3.read(row.state, Dict{String,Any}))
     artifacts = Artifact[
-        _dict_to_artifact(Dict{String,Any}(a))
-        for a in JSON3.read(row.artifacts, Vector{Dict{String,Any}})
+        _dict_to_artifact(Dict{String,Any}(a)) for
+        a in JSON3.read(row.artifacts, Vector{Dict{String,Any}})
     ]
 
-    s = Session(
-        id       = row.id,
-        app_name = row.app_name,
-        user_id  = row.user_id,
-    )
+    s = Session(; id=row.id, app_name=row.app_name, user_id=row.user_id)
     append!(s.history, history)
     merge!(s.state, state)
     append!(s.artifacts, artifacts)
@@ -154,21 +169,27 @@ end
 
 # ── list ──────────────────────────────────────────────────────────────────────
 
-function list(store::SQLiteSessionStore;
-              app_name::Union{String,Nothing} = nothing,
-              user_id ::Union{String,Nothing} = nothing)::Vector{String}
+function list(
+    store::SQLiteSessionStore;
+    app_name::Union{String,Nothing}=nothing,
+    user_id::Union{String,Nothing}=nothing,
+)::Vector{String}
     if isnothing(app_name) && isnothing(user_id)
         result = DBInterface.execute(store.db, "SELECT id FROM sessions")
     elseif !isnothing(app_name) && !isnothing(user_id)
-        result = DBInterface.execute(store.db,
+        result = DBInterface.execute(
+            store.db,
             "SELECT id FROM sessions WHERE app_name = ? AND user_id = ?",
-            (app_name, user_id))
+            (app_name, user_id),
+        )
     elseif !isnothing(app_name)
-        result = DBInterface.execute(store.db,
-            "SELECT id FROM sessions WHERE app_name = ?", (app_name,))
+        result = DBInterface.execute(
+            store.db, "SELECT id FROM sessions WHERE app_name = ?", (app_name,)
+        )
     else
-        result = DBInterface.execute(store.db,
-            "SELECT id FROM sessions WHERE user_id = ?", (user_id,))
+        result = DBInterface.execute(
+            store.db, "SELECT id FROM sessions WHERE user_id = ?", (user_id,)
+        )
     end
     [row.id for row in _collect_rows(result)]
 end

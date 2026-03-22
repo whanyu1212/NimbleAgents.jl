@@ -49,29 +49,31 @@ end
 
 const DANGEROUS_TOOLS = ["send_email", "delete_file"]
 
-agent = Agent(
-    name         = "OpsBot",
-    instructions = """
-    You are an operations assistant. You can read files, list directories,
-    send emails, and delete files. Always complete the user's request.
-    """,
-    tools = [send_email, delete_file, read_file, list_files],
-    model = "gpt-5.4-nano-2026-03-17",
-    hooks = AgentHooks(
-        should_interrupt = (name, args) -> name in DANGEROUS_TOOLS
-    ),
+agent = Agent(;
+    name="OpsBot",
+    instructions="""
+  You are an operations assistant. You can read files, list directories,
+  send emails, and delete files. Always complete the user's request.
+  """,
+    tools=[send_email, delete_file, read_file, list_files],
+    model="gpt-5.4-nano-2026-03-17",
+    hooks=AgentHooks(; should_interrupt=(name, args) -> name in DANGEROUS_TOOLS),
 )
 
 # ── Approval loop ─────────────────────────────────────────────────────────────
 
 function ask_human(interrupt::HumanInterrupt)::String
     names = join([t.name for t in interrupt.tool_calls], ", ")
-    tprintln(Panel(
-        "[bold red]Approval Required[/bold red]\n\n" *
-        "About to call: [bold]$(names)[/bold]\n\n" *
-        "[dim]Type [bold]approve[/bold] to allow, or describe what to do instead:[/dim]",
-        title = "HITL", style = "red", padding = (1, 2),
-    ))
+    tprintln(
+        Panel(
+            "[bold red]Approval Required[/bold red]\n\n" *
+            "About to call: [bold]$(names)[/bold]\n\n" *
+            "[dim]Type [bold]approve[/bold] to allow, or describe what to do instead:[/dim]";
+            title="HITL",
+            style="red",
+            padding=(1, 2),
+        ),
+    )
     print("> ")
     strip(readline())
 end
@@ -95,38 +97,51 @@ end
 
 # ── Example 1 — safe request, no interrupt ────────────────────────────────────
 
-tprintln(Panel(
-    "Example 1 — safe tools only (read + list)\nNo approval prompt will appear.",
-    title = "should_interrupt", style = "cyan", padding = (0, 2),
-))
+tprintln(
+    Panel(
+        "Example 1 — safe tools only (read + list)\nNo approval prompt will appear.";
+        title="should_interrupt",
+        style="cyan",
+        padding=(0, 2),
+    ),
+)
 
-session1 = Session(app_name="hitl", user_id="user")
-result1  = run!(agent, "List files in /tmp and read /tmp/report.txt";
-                session=session1, verbose=false)
+session1 = Session(; app_name="hitl", user_id="user")
+result1 = run!(
+    agent, "List files in /tmp and read /tmp/report.txt"; session=session1, verbose=false
+)
 println(result1, "\n")
 
 # ── Example 2 — dangerous request, single interrupt ───────────────────────────
 
-tprintln(Panel(
-    "Example 2 — dangerous tools (email + delete)\nApproval prompt appears once.",
-    title = "should_interrupt", style = "yellow", padding = (0, 2),
-))
+tprintln(
+    Panel(
+        "Example 2 — dangerous tools (email + delete)\nApproval prompt appears once.";
+        title="should_interrupt",
+        style="yellow",
+        padding=(0, 2),
+    ),
+)
 
-session2 = Session(app_name="hitl", user_id="user")
-result2  = run_with_hitl(agent,
-    "Send a summary to boss@company.com and delete /tmp/backup.log",
-    session2)
+session2 = Session(; app_name="hitl", user_id="user")
+result2 = run_with_hitl(
+    agent, "Send a summary to boss@company.com and delete /tmp/backup.log", session2
+)
 println(result2, "\n")
 
 # ── Example 3 — multi-step: safe then dangerous ───────────────────────────────
 
-tprintln(Panel(
-    "Example 3 — safe step first, then dangerous\nApproval fires only for the dangerous step.",
-    title = "should_interrupt", style = "magenta", padding = (0, 2),
-))
+tprintln(
+    Panel(
+        "Example 3 — safe step first, then dangerous\nApproval fires only for the dangerous step.";
+        title="should_interrupt",
+        style="magenta",
+        padding=(0, 2),
+    ),
+)
 
-session3 = Session(app_name="hitl", user_id="user")
-result3  = run_with_hitl(agent,
-    "Read /tmp/config.yaml, then email ops@company.com with its contents",
-    session3)
+session3 = Session(; app_name="hitl", user_id="user")
+result3 = run_with_hitl(
+    agent, "Read /tmp/config.yaml, then email ops@company.com with its contents", session3
+)
 println(result3, "\n")

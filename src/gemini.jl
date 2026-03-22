@@ -74,32 +74,39 @@ msg = PT.aigenerate(schema, "Hello!"; model="gemini-2.5-flash")
 """
 struct GeminiOpenAISchema <: PT.AbstractOpenAISchema end
 
-function PT.OpenAI.create_chat(::GeminiOpenAISchema,
-        api_key::AbstractString,
-        model::AbstractString,
-        conversation;
-        http_kwargs::NamedTuple = NamedTuple(),
-        streamcallback::Any = nothing,
-        url::String = _GEMINI_BASE_URL,
-        kwargs...)
+function PT.OpenAI.create_chat(
+    ::GeminiOpenAISchema,
+    api_key::AbstractString,
+    model::AbstractString,
+    conversation;
+    http_kwargs::NamedTuple=NamedTuple(),
+    streamcallback::Any=nothing,
+    url::String=_GEMINI_BASE_URL,
+    kwargs...,
+)
     api_key = !isempty(api_key) ? api_key : PT.GOOGLE_API_KEY
-    provider = PT.GoogleProvider(; api_key, base_url = url)
+    provider = PT.GoogleProvider(; api_key, base_url=url)
     if !isnothing(streamcallback)
         full_url = PT.OpenAI.build_url(provider, "chat/completions")
         headers = PT.OpenAI.auth_header(provider, api_key)
         streamcallback, new_kwargs = PT.configure_callback!(
-            streamcallback, GeminiOpenAISchema(); kwargs...)
-        input = PT.OpenAI.build_params((; messages = conversation, model, new_kwargs...))
-        resp = PT.streamed_request!(streamcallback, full_url, headers, input; http_kwargs...)
+            streamcallback, GeminiOpenAISchema(); kwargs...
+        )
+        input = PT.OpenAI.build_params((; messages=conversation, model, new_kwargs...))
+        resp = PT.streamed_request!(
+            streamcallback, full_url, headers, input; http_kwargs...
+        )
         PT.OpenAI.OpenAIResponse(resp.status, JSON3.read(resp.body))
     else
-        PT.OpenAI.openai_request("chat/completions",
+        PT.OpenAI.openai_request(
+            "chat/completions",
             provider;
-            method = "POST",
-            messages = conversation,
-            model = model,
+            method="POST",
+            messages=conversation,
+            model=model,
             http_kwargs,
-            kwargs...)
+            kwargs...,
+        )
     end
 end
 
@@ -131,7 +138,8 @@ function _register_gemini_models!()
     schema = GeminiOpenAISchema()
     for model in models
         PT.MODEL_REGISTRY[model] = PT.ModelSpec(;
-            name = model, schema = schema, description = "Google")
+            name=model, schema=schema, description="Google"
+        )
     end
 end
 # Registration is called from NimbleAgents.__init__() so it runs after

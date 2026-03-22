@@ -2,15 +2,14 @@ struct TestReport
     "A simple test report"
     summary::String
     score::Int
-    passed::Union{Bool, Nothing}
+    passed::Union{Bool,Nothing}
 end
 
 @testset "Agent struct" begin
-
     agent = Agent(
-        name         = "TestBot",
-        instructions = "You are a test assistant.",
-        tools        = [add_tool, greet_tool],
+        name="TestBot",
+        instructions="You are a test assistant.",
+        tools=[add_tool, greet_tool],
     )
 
     @test agent.name == "TestBot"
@@ -22,28 +21,20 @@ end
 
     # Custom model and iterations
     agent2 = Agent(
-        name           = "CustomBot",
-        instructions   = "Custom.",
-        model          = "gpt-4o",
-        max_iterations = 5,
+        name="CustomBot", instructions="Custom.", model="gpt-4o", max_iterations=5
     )
     @test agent2.model == "gpt-4o"
     @test agent2.max_iterations == 5
 
     # output_type field
     agent3 = Agent(
-        name         = "StructuredBot",
-        instructions = "Extract data.",
-        output_type  = TestReport,
+        name="StructuredBot", instructions="Extract data.", output_type=TestReport
     )
     @test agent3.output_type == TestReport
 
     # dynamic instructions (function)
     dyn_fn = (session, agent) -> "Hello $(session.user_id)"
-    agent4 = Agent(
-        name         = "DynBot",
-        instructions = dyn_fn,
-    )
+    agent4 = Agent(name="DynBot", instructions=dyn_fn)
     @test agent4.instructions isa Function
     @test agent4.instructions === dyn_fn
 
@@ -52,28 +43,26 @@ end
 
     # api_kwargs — custom
     agent5 = Agent(
-        name         = "ReasonerBot",
-        instructions = "Think carefully.",
-        api_kwargs   = (; reasoning = Dict("effort" => "high")),
+        name="ReasonerBot",
+        instructions="Think carefully.",
+        api_kwargs=(; reasoning=Dict("effort" => "high")),
     )
     @test agent5.api_kwargs.reasoning == Dict("effort" => "high")
 
     # default retry config
     @test agent.retry isa RetryConfig
-    @test agent.retry.max_retries       == 3
-    @test agent.retry.initial_delay     == 0.5
-    @test agent.retry.max_delay         == 60.0
-    @test agent.retry.multiplier        == 2.0
-    @test agent.retry.jitter            == true
+    @test agent.retry.max_retries == 3
+    @test agent.retry.initial_delay == 0.5
+    @test agent.retry.max_delay == 60.0
+    @test agent.retry.multiplier == 2.0
+    @test agent.retry.jitter == true
     @test 429 in agent.retry.retry_on_status
     @test 529 in agent.retry.retry_on_status
     @test agent.retry.max_parse_retries == 2
 
     # custom retry config
     agent_no_retry = Agent(
-        name         = "NoRetry",
-        instructions = ".",
-        retry        = RetryConfig(max_retries=0),
+        name="NoRetry", instructions=".", retry=RetryConfig(max_retries=0)
     )
     @test agent_no_retry.retry.max_retries == 0
 
@@ -87,7 +76,6 @@ end
 end
 
 @testset "RetryConfig" begin
-
     cfg = RetryConfig()
 
     # backoff grows exponentially and is capped at max_delay
@@ -115,9 +103,9 @@ end
     err_400 = ErrorException("HTTP 400 Bad Request")
     err_401 = ErrorException("HTTP 401 Unauthorized")
 
-    @test  NimbleAgents._retryable(cfg, err_429)
-    @test  NimbleAgents._retryable(cfg, err_503)
-    @test  NimbleAgents._retryable(cfg, err_529)
+    @test NimbleAgents._retryable(cfg, err_429)
+    @test NimbleAgents._retryable(cfg, err_503)
+    @test NimbleAgents._retryable(cfg, err_529)
     @test !NimbleAgents._retryable(cfg, err_400)
     @test !NimbleAgents._retryable(cfg, err_401)
 
@@ -171,18 +159,18 @@ end
     dummy_msgs = ["system prompt"]
 
     hooks = AgentHooks(
-        before_llm_call = (ag, iter, msgs)     -> (push!(log, "llm:$iter"); msgs),
-        after_llm_call  = (ag, iter, resp)      -> push!(log, "llm_result:$iter"),
-        on_tool_call   = (ag, name, args)      -> push!(log, "call:$name"),
-        on_tool_result = (ag, name, result)    -> push!(log, "result:$name=$result"),
-        on_complete    = (ag, result)          -> push!(log, "done"),
+        before_llm_call=(ag, iter, msgs) -> (push!(log, "llm:$iter"); msgs),
+        after_llm_call=(ag, iter, resp) -> push!(log, "llm_result:$iter"),
+        on_tool_call=(ag, name, args) -> push!(log, "call:$name"),
+        on_tool_result=(ag, name, result) -> push!(log, "result:$name=$result"),
+        on_complete=(ag, result) -> push!(log, "done"),
     )
 
     @test hooks.before_llm_call isa Function
-    @test hooks.after_llm_call  isa Function
-    @test hooks.on_tool_call   isa Function
+    @test hooks.after_llm_call isa Function
+    @test hooks.on_tool_call isa Function
     @test hooks.on_tool_result isa Function
-    @test hooks.on_complete    isa Function
+    @test hooks.on_complete isa Function
 
     # fire each manually to confirm correct signatures
     dummy_agent = Agent(name="X", instructions="Y")

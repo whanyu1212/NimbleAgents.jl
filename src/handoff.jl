@@ -38,9 +38,9 @@ handoff_tool(billing; history_filter = HandoffFilter(msgs -> filter(m -> m isa P
 ```
 """
 struct HandoffFilter
-    kind ::Symbol
-    n    ::Int
-    func ::Union{Function, Nothing}
+    kind::Symbol
+    n::Int
+    func::Union{Function,Nothing}
 end
 
 HandoffFilter() = HandoffFilter(:all, 0, nothing)
@@ -56,12 +56,11 @@ function _apply_handoff_filter(filter::HandoffFilter, history::Vector{<:PT.Abstr
         return PT.AbstractMessage[]
     elseif kind == :strip_tools
         return PT.AbstractMessage[
-            m for m in history
-            if !(m isa PT.ToolMessage || m isa PT.AIToolRequest)
+            m for m in history if !(m isa PT.ToolMessage || m isa PT.AIToolRequest)
         ]
     elseif kind == :last_n
         n = max(filter.n, 0)
-        return n >= length(history) ? history : history[end-n+1:end]
+        return n >= length(history) ? history : history[(end - n + 1):end]
     elseif kind == :custom && !isnothing(filter.func)
         return filter.func(history)
     else
@@ -90,9 +89,9 @@ The orchestrator loop in `run_pipeline!` detects `Handoff` results and
 re-runs with the new agent automatically.
 """
 struct Handoff
-    target         ::Agent
-    message        ::String
-    history_filter ::HandoffFilter
+    target::Agent
+    message::String
+    history_filter::HandoffFilter
 end
 
 # Backward-compatible 2-arg constructor
@@ -124,16 +123,16 @@ support_agent = Agent(
 ```
 """
 function handoff_tool(
-    target          ::Agent;
-    name            ::String        = "handoff_to_$(target.name)",
-    description     ::String        = "Transfer the conversation to the $(target.name) agent.",
-    history_filter  ::HandoffFilter = HandoffFilter(),
+    target::Agent;
+    name::String="handoff_to_$(target.name)",
+    description::String="Transfer the conversation to the $(target.name) agent.",
+    history_filter::HandoffFilter=HandoffFilter(),
 )
     params = Dict{String,Any}(
-        "type"       => "object",
+        "type" => "object",
         "properties" => Dict{String,Any}(
             "message" => Dict{String,Any}(
-                "type"        => "string",
+                "type" => "string",
                 "description" => "The message or context to pass to the $(target.name) agent.",
             ),
         ),
@@ -141,10 +140,10 @@ function handoff_tool(
     )
 
     Tool(;
-        name        = name,
-        description = description,
-        parameters  = params,
-        callable    = (message::String) -> Handoff(target, message, history_filter),
+        name=name,
+        description=description,
+        parameters=params,
+        callable=(message::String) -> Handoff(target, message, history_filter),
     )
 end
 
@@ -176,17 +175,17 @@ run!(orchestrator, "What is 3 + 4?")
 ```
 """
 function agent_as_tool(
-    agent      ::Agent;
-    name       ::String = agent.name,
-    description::String = "Call the $(agent.name) agent with a task and get its response.",
-    session    ::Union{Session, Nothing} = nothing,
-    verbose    ::Bool = false,
+    agent::Agent;
+    name::String=agent.name,
+    description::String="Call the $(agent.name) agent with a task and get its response.",
+    session::Union{Session,Nothing}=nothing,
+    verbose::Bool=false,
 )
     params = Dict{String,Any}(
-        "type"       => "object",
+        "type" => "object",
         "properties" => Dict{String,Any}(
             "task" => Dict{String,Any}(
-                "type"        => "string",
+                "type" => "string",
                 "description" => "The task or question to send to the $(agent.name) agent.",
             ),
         ),
@@ -194,10 +193,10 @@ function agent_as_tool(
     )
 
     Tool(;
-        name        = name,
-        description = description,
-        parameters  = params,
-        callable    = (task::String) -> begin
+        name=name,
+        description=description,
+        parameters=params,
+        callable=(task::String) -> begin
             result = run!(agent, task; session=session, verbose=verbose)
             string(result)
         end,
@@ -230,31 +229,33 @@ result = run_pipeline!(triage_agent, "I need help with my bill";
 ```
 """
 function run_pipeline!(
-    agent        ::Agent,
-    input        ::String;
-    session      ::Union{Session, Nothing} = nothing,
-    verbose      ::Bool = true,
-    max_handoffs ::Int  = 10,
+    agent::Agent,
+    input::String;
+    session::Union{Session,Nothing}=nothing,
+    verbose::Bool=true,
+    max_handoffs::Int=10,
 )
-    current_agent   = agent
-    current_input   = input
-    handoff_count   = 0
+    current_agent = agent
+    current_input = input
+    handoff_count = 0
 
     while true
-        result = run!(current_agent, current_input;
-                      session = session,
-                      verbose = verbose)
+        result = run!(current_agent, current_input; session=session, verbose=verbose)
 
         # Not a handoff — we're done
         result isa Handoff || return result
 
         handoff_count += 1
         if handoff_count > max_handoffs
-            println(stderr, "[run_pipeline!] reached max_handoffs ($max_handoffs); stopping.")
+            println(
+                stderr, "[run_pipeline!] reached max_handoffs ($max_handoffs); stopping."
+            )
             return result.message
         end
 
-        verbose && println("[run_pipeline!] handoff: $(current_agent.name) → $(result.target.name)")
+        verbose && println(
+            "[run_pipeline!] handoff: $(current_agent.name) → $(result.target.name)"
+        )
 
         # Apply history filter before handing off
         if !isnothing(session) && result.history_filter.kind != :all
@@ -304,12 +305,12 @@ result = loop_pipeline!(
 ```
 """
 function loop_pipeline!(
-    agents      ::Vector{Agent},
-    input       ::String;
-    stop_when            = (agent, result) -> false,
-    max_rounds  ::Int    = 5,
-    session     ::Union{Session, Nothing} = nothing,
-    verbose     ::Bool   = true,
+    agents::Vector{Agent},
+    input::String;
+    stop_when=(agent, result) -> false,
+    max_rounds::Int=5,
+    session::Union{Session,Nothing}=nothing,
+    verbose::Bool=true,
 )
     isempty(agents) && error("loop_pipeline!: agents list must not be empty")
 
@@ -319,12 +320,12 @@ function loop_pipeline!(
         verbose && println("[loop_pipeline!] round $round/$max_rounds")
 
         for agent in agents
-            result = run!(agent, current_input;
-                          session = session,
-                          verbose = verbose)
+            result = run!(agent, current_input; session=session, verbose=verbose)
 
             if stop_when(agent, result)
-                verbose && println("[loop_pipeline!] stop_when triggered by $(agent.name) in round $round")
+                verbose && println(
+                    "[loop_pipeline!] stop_when triggered by $(agent.name) in round $round",
+                )
                 return result
             end
 
@@ -332,7 +333,10 @@ function loop_pipeline!(
         end
     end
 
-    verbose && println(stderr, "[loop_pipeline!] reached max_rounds ($max_rounds); returning last result.")
+    verbose && println(
+        stderr,
+        "[loop_pipeline!] reached max_rounds ($max_rounds); returning last result.",
+    )
     # Return the result of the last agent in the last round
     return current_input
 end
@@ -368,18 +372,21 @@ report = fan_out(research_agent, topics;
 ```
 """
 function fan_out(
-    agent   ::Agent,
-    inputs  ::Vector{String};
-    reducer          = nothing,
-    parallel::Bool   = false,
-    session ::Union{Session, Nothing} = nothing,
-    verbose ::Bool   = false,
+    agent::Agent,
+    inputs::Vector{String};
+    reducer=nothing,
+    parallel::Bool=false,
+    session::Union{Session,Nothing}=nothing,
+    verbose::Bool=false,
 )
-    isempty(inputs) && return isnothing(reducer) ? Any[] : error("fan_out: cannot reduce empty inputs")
+    isempty(inputs) &&
+        return isnothing(reducer) ? Any[] : error("fan_out: cannot reduce empty inputs")
 
     results = if parallel
-        tasks = [Threads.@spawn run!(agent, inp; session=session, verbose=verbose)
-                 for inp in inputs]
+        tasks = [
+            Threads.@spawn run!(agent, inp; session=session, verbose=verbose) for
+            inp in inputs
+        ]
         Any[fetch(t) for t in tasks]
     else
         Any[run!(agent, inp; session=session, verbose=verbose) for inp in inputs]
@@ -422,16 +429,18 @@ results = spawn_subagents([
 ```
 """
 function spawn_subagents(
-    pairs   ::Vector{<:Tuple{Agent, String}};
-    parallel::Bool = false,
-    session ::Union{Session, Nothing} = nothing,
-    verbose ::Bool = false,
+    pairs::Vector{<:Tuple{Agent,String}};
+    parallel::Bool=false,
+    session::Union{Session,Nothing}=nothing,
+    verbose::Bool=false,
 )
     isempty(pairs) && return Any[]
 
     if parallel
-        tasks = [Threads.@spawn run!(ag, inp; session=session, verbose=verbose)
-                 for (ag, inp) in pairs]
+        tasks = [
+            Threads.@spawn run!(ag, inp; session=session, verbose=verbose) for
+            (ag, inp) in pairs
+        ]
         return Any[fetch(t) for t in tasks]
     else
         return Any[run!(ag, inp; session=session, verbose=verbose) for (ag, inp) in pairs]

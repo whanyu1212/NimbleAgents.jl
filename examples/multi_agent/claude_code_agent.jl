@@ -17,7 +17,7 @@ using DotEnv
 DotEnv.load!()
 
 using NimbleAgents
-import JSON3
+using JSON3: JSON3
 
 # ── Create the Claude Code tool ─────────────────────────────────────────────
 #
@@ -25,12 +25,12 @@ import JSON3
 # with stream-json output. The `on_output` callback fires for every line
 # of output, enabling real-time progress visibility.
 
-coder = claude_code_tool(
-    working_dir = @__DIR__,
-    model       = "sonnet",
-    timeout     = 120.0,
+coder = claude_code_tool(;
+    working_dir=@__DIR__,
+    model="sonnet",
+    timeout=120.0,
     # Stream Claude Code's progress to the terminal
-    on_output = line -> begin
+    on_output=line -> begin
         try
             event = JSON3.read(line)
             type = get(event, :type, "")
@@ -42,7 +42,8 @@ coder = claude_code_tool(
                 end
             elseif type == "result"
                 cost = get(event, :total_cost_usd, nothing)
-                !isnothing(cost) && println("[claude] Cost: \$$(round(cost; digits=4))")
+                !isnothing(cost) &&
+                    println("[claude] Cost: \$$(round(cost; digits=4))")
             end
         catch
             # Not all lines are JSON (e.g. progress indicators)
@@ -56,13 +57,13 @@ coder = claude_code_tool(
 # It receives the final result (extracted from stream-json) and can
 # iterate or ask follow-up questions.
 
-pm = Agent(
-    name         = "PM",
-    instructions = """You are a project manager. When the user asks for a coding task,
+pm = Agent(;
+    name="PM",
+    instructions="""You are a project manager. When the user asks for a coding task,
 delegate it to the claude_code tool with a clear, specific description.
 Review the result and report back to the user.""",
-    tools        = [coder],
-    max_iterations = 3,
+    tools=[coder],
+    max_iterations=3,
 )
 
 # ── Run it ───────────────────────────────────────────────────────────────────
@@ -72,7 +73,10 @@ println("PM Agent with Claude Code sub-agent")
 println("=" ^ 60)
 println()
 
-result = run!(pm, "Create a simple Julia function in a file called fibonacci.jl that computes the nth Fibonacci number efficiently using memoization. Include docstrings and a few test cases at the bottom.")
+result = run!(
+    pm,
+    "Create a simple Julia function in a file called fibonacci.jl that computes the nth Fibonacci number efficiently using memoization. Include docstrings and a few test cases at the bottom.",
+)
 println("\n", "=" ^ 60)
 println("PM says: ", result)
 

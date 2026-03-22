@@ -23,11 +23,11 @@ SKILLS_DIR = joinpath(@__DIR__, "skills")  # examples/agents/skills/
 # Only metadata (name + description) is injected into the system prompt —
 # full instructions are loaded on demand via the built-in read_skill tool.
 
-agent = Agent(
-    name        = "DevAssistant",
-    instructions = "You are a helpful software development assistant.",
-    model       = "gpt-5.4-nano-2026-03-17",
-    skill_dirs  = [SKILLS_DIR],
+agent = Agent(;
+    name="DevAssistant",
+    instructions="You are a helpful software development assistant.",
+    model="gpt-5.4-nano-2026-03-17",
+    skill_dirs=[SKILLS_DIR],
 )
 
 println("=" ^ 60)
@@ -43,10 +43,13 @@ println("=" ^ 60)
 println("Scenario 1: Julia performance question")
 println("-" ^ 60)
 
-session1 = Session(app_name="skills_demo", user_id="dev")
-result1  = run!(agent,
+session1 = Session(; app_name="skills_demo", user_id="dev")
+result1 = run!(
+    agent,
     "What are the most important things to check when optimising Julia code for performance?";
-    session = session1, verbose = false)
+    session=session1,
+    verbose=false,
+)
 
 println(result1)
 println()
@@ -67,10 +70,13 @@ function find_user(users, name)
 end
 """
 
-session2 = Session(app_name="skills_demo", user_id="dev")
-result2  = run!(agent,
+session2 = Session(; app_name="skills_demo", user_id="dev")
+result2 = run!(
+    agent,
     "Please review this Julia code:\n\n```julia\n$(code_snippet)\n```";
-    session = session2, verbose = false)
+    session=session2,
+    verbose=false,
+)
 
 println(result2)
 println()
@@ -88,16 +94,19 @@ julia_skill = Skill(
     joinpath(SKILLS_DIR, "julia-expert"),
 )
 
-focused_agent = Agent(
-    name         = "JuliaBot",
-    instructions = "You are a Julia programming specialist.",
-    model        = "gpt-5.4-nano-2026-03-17",
-    skills       = [julia_skill],
+focused_agent = Agent(;
+    name="JuliaBot",
+    instructions="You are a Julia programming specialist.",
+    model="gpt-5.4-nano-2026-03-17",
+    skills=[julia_skill],
 )
 
-session3 = Session(app_name="skills_demo", user_id="dev")
-result3  = run!(focused_agent,
+session3 = Session(; app_name="skills_demo", user_id="dev")
+result3 = run!(
+    focused_agent,
     "What is the difference between == and === in Julia?";
-    session = session3, verbose = false)
+    session=session3,
+    verbose=false,
+)
 
 println(result3)

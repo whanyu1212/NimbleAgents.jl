@@ -3,7 +3,7 @@
 ###############################################################################
 
 import PromptingTools as PT
-import StreamCallbacks
+using StreamCallbacks: StreamCallbacks
 using Mocking
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -39,16 +39,22 @@ hooks = AgentHooks(
 ```
 """
 struct HumanInterrupt <: Exception
-    tool_calls ::Any     # Vector of PT ToolMessage objects
-    message    ::String
-    HumanInterrupt(tool_calls; message::String = "Human approval required") =
+    tool_calls::Any     # Vector of PT ToolMessage objects
+    message::String
+    function HumanInterrupt(tool_calls; message::String="Human approval required")
         new(tool_calls, message)
+    end
 end
 
-Base.showerror(io::IO, e::HumanInterrupt) =
-    print(io, "HumanInterrupt: ", e.message,
-          "\n  Pending tool calls: ",
-          join([t.name for t in e.tool_calls], ", "))
+function Base.showerror(io::IO, e::HumanInterrupt)
+    print(
+        io,
+        "HumanInterrupt: ",
+        e.message,
+        "\n  Pending tool calls: ",
+        join([t.name for t in e.tool_calls], ", "),
+    )
+end
 
 """
     ApprovalTimeout(tool_calls, timeout)
@@ -57,14 +63,18 @@ Thrown when an `approval_channel` is provided but no response arrives within
 `approval_timeout` seconds.
 """
 struct ApprovalTimeout <: Exception
-    tool_calls ::Any
-    timeout    ::Float64
+    tool_calls::Any
+    timeout::Float64
 end
 
-Base.showerror(io::IO, e::ApprovalTimeout) =
-    print(io, "ApprovalTimeout: no response received within $(e.timeout)s\n",
-          "  Pending tool calls: ",
-          join([t.name for t in e.tool_calls], ", "))
+function Base.showerror(io::IO, e::ApprovalTimeout)
+    print(
+        io,
+        "ApprovalTimeout: no response received within $(e.timeout)s\n",
+        "  Pending tool calls: ",
+        join([t.name for t in e.tool_calls], ", "),
+    )
+end
 
 """
     resume!(session, human_response)
@@ -133,17 +143,17 @@ agent = Agent(
 ```
 """
 Base.@kwdef struct RetryConfig
-    max_retries      ::Int         = 3
-    initial_delay    ::Float64     = 0.5
+    max_retries::Int = 3
+    initial_delay::Float64 = 0.5
     # 60s matches the standard 1-minute rate-limit reset window for OpenAI and
     # Anthropic. Retries that reach this cap will wait long enough for the window
     # to clear before trying again, rather than giving up too early (32s) or
     # hanging excessively (ADK's 120s / LangGraph's 128s).
-    max_delay        ::Float64     = 60.0
-    multiplier       ::Float64     = 2.0
-    jitter           ::Bool        = true
-    retry_on_status  ::Vector{Int} = [408, 429, 500, 502, 503, 504, 529]
-    max_parse_retries::Int         = 2
+    max_delay::Float64 = 60.0
+    multiplier::Float64 = 2.0
+    jitter::Bool = true
+    retry_on_status::Vector{Int} = [408, 429, 500, 502, 503, 504, 529]
+    max_parse_retries::Int = 2
 end
 
 # Compute the wait time for attempt n (1-indexed), with optional jitter.
@@ -157,8 +167,10 @@ end
 # from messages that happen to contain a status code number in other contexts.
 function _retryable(cfg::RetryConfig, err)::Bool
     msg = sprint(showerror, err)
-    any(occursin(Regex("(?:HTTP|status)\\s*" * string(code)), msg)
-        for code in cfg.retry_on_status)
+    any(
+        occursin(Regex("(?:HTTP|status)\\s*" * string(code)), msg) for
+        code in cfg.retry_on_status
+    )
 end
 
 # Retry wrapper: calls f(), retrying on retryable errors up to cfg.max_retries times.
@@ -172,7 +184,11 @@ function _with_retry(f::Function, cfg::RetryConfig, agent_name::String)
             attempt > cfg.max_retries && break
             _retryable(cfg, err) || rethrow(err)
             delay = _backoff_delay(cfg, attempt)
-            println(stderr, "[$(agent_name)] LLM call failed (attempt $(attempt)/$(cfg.max_retries + 1)), retrying in $(round(delay; digits=1))s: ", sprint(showerror, err))
+            println(
+                stderr,
+                "[$(agent_name)] LLM call failed (attempt $(attempt)/$(cfg.max_retries + 1)), retrying in $(round(delay; digits=1))s: ",
+                sprint(showerror, err),
+            )
             sleep(delay)
         end
     end
@@ -226,14 +242,14 @@ session_agent = Agent(
 """
 Base.@kwdef struct ContextConfig
     # Claude Opus 4.5/4.6: 400k context window, 128k max output.
-    context_window    ::Int                  = 400_000
+    context_window::Int = 400_000
     # Trigger at 80% — same heuristic as Claude Code and Codex.
     # Leaves 80k headroom for current-turn input + model output.
-    compact_threshold ::Float64              = 0.80
+    compact_threshold::Float64 = 0.80
     # Keep the 20 most recent messages verbatim so the agent has
     # immediate context; only older messages are summarised.
-    keep_last         ::Int                  = 20
-    summary_model     ::Union{String,Nothing} = nothing
+    keep_last::Int = 20
+    summary_model::Union{String,Nothing} = nothing
 end
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -288,12 +304,12 @@ hooks = AgentHooks(
 ```
 """
 Base.@kwdef struct AgentHooks
-    before_llm_call  ::Union{Function, Nothing} = nothing  # (agent, iteration, messages) -> messages
-    after_llm_call    ::Union{Function, Nothing} = nothing  # (agent, iteration, response)
-    should_interrupt ::Union{Function, Nothing} = nothing  # (tool_name, args) -> Bool
-    on_tool_call     ::Union{Function, Nothing} = nothing  # (agent, tool_name, args)
-    on_tool_result   ::Union{Function, Nothing} = nothing  # (agent, tool_name, result)
-    on_complete      ::Union{Function, Nothing} = nothing  # (agent, result)
+    before_llm_call::Union{Function,Nothing} = nothing  # (agent, iteration, messages) -> messages
+    after_llm_call::Union{Function,Nothing} = nothing  # (agent, iteration, response)
+    should_interrupt::Union{Function,Nothing} = nothing  # (tool_name, args) -> Bool
+    on_tool_call::Union{Function,Nothing} = nothing  # (agent, tool_name, args)
+    on_tool_result::Union{Function,Nothing} = nothing  # (agent, tool_name, result)
+    on_complete::Union{Function,Nothing} = nothing  # (agent, result)
 end
 
 # Helper — call a hook only if it is set
@@ -303,6 +319,74 @@ _fire(f::Function, args...) = f(args...)
 """Resolve agent instructions — static string or dynamic callable."""
 _resolve_instructions(s::String, session, agent) = s
 _resolve_instructions(f::Function, session, agent) = f(session, agent)::String
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Tool output trimming
+# ──────────────────────────────────────────────────────────────────────────────
+
+"""
+    _trim_tool_output(text, max_chars) -> String
+
+Line-aware head+tail trimming. If `text` fits within `max_chars`, returns it
+unchanged. Otherwise keeps ~80% from the head and ~20% from the tail (snapped
+to line boundaries) with an informative gap marker.
+
+Returns the original string when `max_chars <= 0` (unlimited).
+"""
+function _trim_tool_output(text::AbstractString, max_chars::Int)::String
+    max_chars <= 0 && return String(text)
+    n = length(text)
+    n <= max_chars && return String(text)
+
+    lines = split(text, '\n')
+    length(lines) <= 2 && return text[1:max_chars] * "\n... (truncated, $(n) total chars)"
+
+    head_budget = round(Int, max_chars * 0.80)
+    tail_budget = max_chars - head_budget
+
+    # Head: take lines until budget exhausted
+    head_lines = String[]
+    head_chars = 0
+    for line in lines
+        next = head_chars + length(line) + 1  # +1 for newline
+        next > head_budget && break
+        push!(head_lines, line)
+        head_chars = next
+    end
+
+    # Tail: take lines from end until budget exhausted
+    tail_lines = String[]
+    tail_chars = 0
+    for i in length(lines):-1:1
+        line = lines[i]
+        next = tail_chars + length(line) + 1
+        next > tail_budget && break
+        pushfirst!(tail_lines, line)
+        tail_chars = next
+    end
+
+    omitted_lines = length(lines) - length(head_lines) - length(tail_lines)
+    omitted_chars = n - head_chars - tail_chars
+    approx_tokens = div(omitted_chars, 4)
+
+    head_str = join(head_lines, '\n')
+    tail_str = join(tail_lines, '\n')
+    marker = "\n... (trimmed $(omitted_chars) chars / ~$(approx_tokens) tokens, $(omitted_lines) lines omitted) ...\n"
+
+    head_str * marker * tail_str
+end
+
+"""
+    _effective_max_output(tool_obj, agent) -> Int
+
+Resolve the effective output limit: per-tool override wins, then agent default.
+Returns 0 (unlimited) if neither is set.
+"""
+function _effective_max_output(tool_obj, agent)::Int
+    per_tool = _max_output(tool_obj)
+    per_tool > 0 && return per_tool
+    return agent.max_tool_output
+end
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Agent struct
@@ -339,6 +423,10 @@ A configured AI agent with a system prompt, a set of tools, and a model.
   system prompt; full instructions are loaded on demand via the built-in `read_skill` tool.
 - `skill_dirs::Vector{String}`: Directories to scan for skill subdirectories at run time.
   Discovered skills are merged with any explicitly listed in `skills`.
+- `max_tool_output::Int`: Global character limit for tool result strings inserted into
+  the conversation (default: `0` = unlimited). When a tool result exceeds this limit, it
+  is trimmed with head+tail preservation and an informative gap marker. Per-tool limits
+  (`NimbleTool.max_output`) override this when set.
 
 # Example — plain text output
 ```julia
@@ -364,22 +452,23 @@ run!(agent, "Now multiply that by 3"; session=session)  # remembers 22
 ```
 """
 Base.@kwdef struct Agent
-    name          ::String
-    instructions  ::Union{String, Function}
-    tools         ::Vector{<:AbstractTool}     = NimbleTool[]
-    model         ::String                     = "gpt-5.4-mini"
-    max_iterations::Int                        = 10
-    output_type   ::Union{Type, Nothing}       = nothing
-    api_kwargs    ::NamedTuple                 = NamedTuple()
-    hooks         ::AgentHooks                 = AgentHooks()
-    sub_agents    ::Vector{Agent}              = Agent[]
-    retry         ::RetryConfig                = RetryConfig()
-    context       ::ContextConfig              = ContextConfig()
-    skills        ::Vector{Skill}              = Skill[]
-    skill_dirs    ::Vector{String}             = String[]
-    mcp_servers   ::Vector{MCPServer}          = MCPServer[]
-    guardrails    ::Vector{Guardrail}          = Guardrail[]
-    memory        ::Union{AbstractMemoryService, Nothing} = nothing
+    name::String
+    instructions::Union{String,Function}
+    tools::Vector{<:AbstractTool} = NimbleTool[]
+    model::String = "gpt-5.4-mini"
+    max_iterations::Int = 10
+    output_type::Union{Type,Nothing} = nothing
+    api_kwargs::NamedTuple = NamedTuple()
+    hooks::AgentHooks = AgentHooks()
+    sub_agents::Vector{Agent} = Agent[]
+    retry::RetryConfig = RetryConfig()
+    context::ContextConfig = ContextConfig()
+    skills::Vector{Skill} = Skill[]
+    skill_dirs::Vector{String} = String[]
+    mcp_servers::Vector{MCPServer} = MCPServer[]
+    guardrails::Vector{Guardrail} = Guardrail[]
+    memory::Union{AbstractMemoryService,Nothing} = nothing
+    max_tool_output::Int = 0  # 0 = unlimited
 end
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -427,13 +516,16 @@ put!(ch, "approve")   # unblocks the agent from anywhere
 result = fetch(task)
 ```
 """
-function run!(agent::Agent, input::String;
-              session          ::Union{Session, Nothing}              = nothing,
-              verbose          ::Bool                                 = true,
-              on_token         ::Union{Function, Nothing}             = nothing,
-              approval_channel ::Union{Channel{String}, Nothing}      = nothing,
-              approval_timeout ::Float64                              = 300.0,
-              store            ::Union{AbstractSessionStore, Nothing} = nothing)
+function run!(
+    agent::Agent,
+    input::String;
+    session::Union{Session,Nothing}=nothing,
+    verbose::Bool=true,
+    on_token::Union{Function,Nothing}=nothing,
+    approval_channel::Union{Channel{String},Nothing}=nothing,
+    approval_timeout::Float64=300.0,
+    store::Union{AbstractSessionStore,Nothing}=nothing,
+)
     # Merge explicit tools with auto-generated handoff tools from sub_agents
     sub_tools = Tool[handoff_tool(sa) for sa in agent.sub_agents]
     all_tools = isempty(sub_tools) ? agent.tools : vcat(agent.tools, sub_tools)
@@ -451,266 +543,408 @@ function run!(agent::Agent, input::String;
         all_tools = vcat(all_tools, mcp_tools)
     end
 
-    tool_map  = build_tool_map(all_tools)
-    hooks     = agent.hooks
-    t_start   = time()
+    tool_map = build_tool_map(all_tools)
+    hooks = agent.hooks
+    t_start = time()
 
     # Expose session and store to built-in tools via task-local storage so
     # they can access per-session state without explicit parameter threading.
-    task_local_storage(:_repl_session_state,
-                       isnothing(session) ? nothing : session.state)
+    task_local_storage(:_repl_session_state, isnothing(session) ? nothing : session.state)
     task_local_storage(:_current_session, session)
-    task_local_storage(:_current_store,   store)
-    task_local_storage(:_current_memory,  agent.memory)
+    task_local_storage(:_current_store, store)
+    task_local_storage(:_current_memory, agent.memory)
 
     # Build a TurnEvent to accumulate per-turn metadata
     turn = TurnEvent(agent.name, agent.model, input)
 
     try
 
-    # Compact session history if it is approaching the context window limit
-    !isnothing(session) && compact!(session, agent)
+        # Compact session history if it is approaching the context window limit
+        !isnothing(session) && compact!(session, agent)
 
-    # ── Input guardrails ────────────────────────────────────────────────────
-    effective_input = try
-        _run_guardrails(agent.guardrails, :input, input, agent.name, verbose)
-    catch e
-        e isa GuardrailBlocked || rethrow()
-        resolved = _resolve_instructions(agent.instructions, session, agent)
-        return _finish!(e.reason, turn, t_start, session,
-                        PT.AbstractMessage[PT.SystemMessage(resolved),
-                                           PT.UserMessage(input)],
-                        2, hooks, agent, store)
-    end
+        # ── Input guardrails ────────────────────────────────────────────────────
+        effective_input = try
+            _run_guardrails(agent.guardrails, :input, input, agent.name, verbose)
+        catch e
+            e isa GuardrailBlocked || rethrow()
+            resolved = _resolve_instructions(agent.instructions, session, agent)
+            return _finish!(
+                e.reason,
+                turn,
+                t_start,
+                session,
+                PT.AbstractMessage[PT.SystemMessage(resolved), PT.UserMessage(input)],
+                2,
+                hooks,
+                agent,
+                store,
+            )
+        end
 
-    # Seed the conversation: system prompt (+ skill metadata + memory) + session history + user message
-    system_prompt = _resolve_instructions(agent.instructions, session, agent) * _skills_prompt(all_skills) * _memory_prompt(agent.memory, effective_input, session)
-    conversation = PT.AbstractMessage[
-        PT.SystemMessage(system_prompt),
-        (isnothing(session) ? PT.AbstractMessage[] : session.history)...,
-        PT.UserMessage(effective_input),
-    ]
-    n_seeded = length(conversation)
+        # Seed the conversation: system prompt (+ skill metadata + memory) + session history + user message
+        system_prompt =
+            _resolve_instructions(agent.instructions, session, agent) *
+            _skills_prompt(all_skills) *
+            _memory_prompt(agent.memory, effective_input, session)
+        conversation = PT.AbstractMessage[
+            PT.SystemMessage(system_prompt),
+            (isnothing(session) ? PT.AbstractMessage[] : session.history)...,
+            PT.UserMessage(effective_input),
+        ]
+        n_seeded = length(conversation)
 
-    for iteration in 1:agent.max_iterations
-        verbose && println("[$(agent.name)] iteration $iteration")
+        for iteration in 1:agent.max_iterations
+            verbose && println("[$(agent.name)] iteration $iteration")
 
-        # ── Structured output with no tools: skip tool loop entirely ───────
-        if isnothing(agent.output_type) || !isempty(all_tools)
-            if !isnothing(hooks.before_llm_call)
-                conversation = hooks.before_llm_call(agent, iteration, conversation)
+            # ── Structured output with no tools: skip tool loop entirely ───────
+            if isnothing(agent.output_type) || !isempty(all_tools)
+                if !isnothing(hooks.before_llm_call)
+                    conversation = hooks.before_llm_call(agent, iteration, conversation)
+                end
+                _acquire_rate_limit!(agent.model)
+
+                conversation = _with_retry(agent.retry, agent.name) do
+                    @mock PT.aitools(
+                        conversation;
+                        tools=all_tools,
+                        model=agent.model,
+                        return_all=true,
+                        verbose=false,
+                        agent.api_kwargs...,
+                    )
+                end
+
+                last_msg = conversation[end]
+                turn.llm_calls += 1
+                _accumulate_usage!(turn, last_msg)
+                _fire(hooks.after_llm_call, agent, iteration, last_msg)
+
+                # Tool call response → execute each tool, append results, loop
+                if last_msg isa PT.AIToolRequest && !isempty(last_msg.tool_calls)
+                    # should_interrupt: scan all pending tool calls before executing any.
+                    # Collect every flagged call so the human sees the full batch at once.
+                    if !isnothing(hooks.should_interrupt)
+                        flagged = filter(last_msg.tool_calls) do t
+                            hooks.should_interrupt(t.name, something(t.args, Dict()))
+                        end
+                        if !isempty(flagged)
+                            names = join([t.name for t in flagged], ", ")
+                            if !isnothing(approval_channel)
+                                # Non-blocking path: pause mid-loop and wait for a
+                                # response on the channel. The agent holds all state —
+                                # no re-run needed. The caller puts "approve" to
+                                # proceed, any other string to redirect, or closes
+                                # the channel to abort.
+                                verbose && println(
+                                    "[$(agent.name)] waiting for approval: $(names)"
+                                )
+                                status = timedwait(approval_timeout) do
+                                    isready(approval_channel) || !isopen(approval_channel)
+                                end
+                                if status == :timed_out
+                                    throw(ApprovalTimeout(flagged, approval_timeout))
+                                end
+                                if !isopen(approval_channel)
+                                    error(
+                                        "[$(agent.name)] approval_channel closed — aborting"
+                                    )
+                                end
+                                response = take!(approval_channel)
+                                # Inject the human's response into the conversation
+                                # so the agent has context when it continues
+                                push!(conversation, PT.UserMessage(response))
+                                if lowercase(strip(response)) != "approve"
+                                    # Redirect: skip remaining tool calls this
+                                    # iteration and let the LLM re-plan
+                                    continue
+                                end
+                            else
+                                # Blocking path: throw and let the caller handle it
+                                throw(
+                                    HumanInterrupt(
+                                        flagged; message="About to call: $(names)"
+                                    ),
+                                )
+                            end
+                        end
+                    end
+
+                    # ── Execute tools (parallel when safe, sequential otherwise) ──
+                    # return_direct and Handoff require immediate short-circuit, so
+                    # any batch containing those tools falls back to sequential.
+                    has_special = any(last_msg.tool_calls) do t
+                        obj = get(tool_map, t.name, nothing)
+                        !isnothing(obj) &&
+                            (_is_return_direct(obj) || !isempty(agent.sub_agents))
+                    end
+                    use_parallel = !has_special && length(last_msg.tool_calls) > 1
+
+                    if use_parallel
+                        # ── Parallel path ─────────────────────────────────────────
+                        verbose && println(
+                            "[$(agent.name)] executing $(length(last_msg.tool_calls)) tools in parallel",
+                        )
+                        for t in last_msg.tool_calls
+                            _fire(hooks.on_tool_call, agent, t.name, t.args)
+                        end
+
+                        tasks = map(last_msg.tool_calls) do t
+                            Threads.@spawn begin
+                                try
+                                    (dispatch_tool(tool_map, t.name, t.args), nothing)
+                                catch e
+                                    err_str = sprint(showerror, e)
+                                    ("Error: $(err_str)", err_str)
+                                end
+                            end
+                        end
+
+                        # Collect results in order
+                        for (i, tool_msg) in enumerate(last_msg.tool_calls)
+                            result, err = fetch(tasks[i])
+                            verbose &&
+                                println("[$(agent.name)] tool done: $(tool_msg.name)")
+
+                            push!(
+                                turn.tool_calls,
+                                if isnothing(err)
+                                    ToolEvent(
+                                        tool_msg.name,
+                                        something(tool_msg.args, Dict{Symbol,Any}()),
+                                        result,
+                                    )
+                                else
+                                    ToolEvent(
+                                        tool_msg.name,
+                                        something(tool_msg.args, Dict{Symbol,Any}());
+                                        error=err,
+                                    )
+                                end,
+                            )
+
+                            _fire(hooks.on_tool_result, agent, tool_msg.name, result)
+
+                            tool_obj = get(tool_map, tool_msg.name, nothing)
+                            result_str = string(result)
+                            limit = if isnothing(tool_obj)
+                                agent.max_tool_output
+                            else
+                                _effective_max_output(tool_obj, agent)
+                            end
+                            tool_msg.content = _trim_tool_output(result_str, limit)
+                            push!(conversation, tool_msg)
+
+                            if !isnothing(tool_obj) &&
+                                _is_return_artifact(tool_obj) &&
+                                isnothing(err) &&
+                                !isnothing(session) &&
+                                result isa AbstractString &&
+                                isfile(result)
+                                register_artifact!(
+                                    session,
+                                    string(result);
+                                    metadata=Dict{String,Any}("tool" => tool_msg.name),
+                                    store=store,
+                                )
+                            end
+                        end
+                    else
+                        # ── Sequential path ───────────────────────────────────────
+                        for tool_msg in last_msg.tool_calls
+                            verbose &&
+                                println("[$(agent.name)] calling tool: $(tool_msg.name)")
+                            _fire(hooks.on_tool_call, agent, tool_msg.name, tool_msg.args)
+
+                            result = nothing
+                            err = nothing
+                            try
+                                result = dispatch_tool(
+                                    tool_map, tool_msg.name, tool_msg.args
+                                )
+                            catch e
+                                err = sprint(showerror, e)
+                                result = "Error: $(err)"
+                            end
+
+                            push!(
+                                turn.tool_calls,
+                                if isnothing(err)
+                                    ToolEvent(
+                                        tool_msg.name,
+                                        something(tool_msg.args, Dict{Symbol,Any}()),
+                                        result,
+                                    )
+                                else
+                                    ToolEvent(
+                                        tool_msg.name,
+                                        something(tool_msg.args, Dict{Symbol,Any}());
+                                        error=err,
+                                    )
+                                end,
+                            )
+
+                            _fire(hooks.on_tool_result, agent, tool_msg.name, result)
+
+                            # Handoff: surface immediately so run_pipeline! can reroute
+                            if result isa Handoff
+                                _finish!(
+                                    result,
+                                    turn,
+                                    t_start,
+                                    session,
+                                    conversation,
+                                    n_seeded,
+                                    hooks,
+                                    agent,
+                                    store,
+                                )
+                                return result
+                            end
+
+                            tool_obj = get(tool_map, tool_msg.name, nothing)
+                            result_str = string(result)
+                            limit = if isnothing(tool_obj)
+                                agent.max_tool_output
+                            else
+                                _effective_max_output(tool_obj, agent)
+                            end
+                            tool_msg.content = _trim_tool_output(result_str, limit)
+                            push!(conversation, tool_msg)
+
+                            # return_artifact: register result as a session artifact
+                            if !isnothing(tool_obj) &&
+                                _is_return_artifact(tool_obj) &&
+                                isnothing(err) &&
+                                !isnothing(session) &&
+                                result isa AbstractString &&
+                                isfile(result)
+                                register_artifact!(
+                                    session,
+                                    string(result);
+                                    metadata=Dict{String,Any}("tool" => tool_msg.name),
+                                    store=store,
+                                )
+                            end
+
+                            # return_direct: skip the next LLM call and return immediately.
+                            if !isnothing(tool_obj) &&
+                                _is_return_direct(tool_obj) &&
+                                isnothing(err)
+                                verbose && println(
+                                    "[$(agent.name)] return_direct — short-circuiting after $(tool_msg.name)",
+                                )
+                                return _finish!(
+                                    result,
+                                    turn,
+                                    t_start,
+                                    session,
+                                    conversation,
+                                    n_seeded,
+                                    hooks,
+                                    agent,
+                                    store,
+                                )
+                            end
+                        end
+                    end
+                    continue
+                end
             end
-            _acquire_rate_limit!(agent.model)
 
-            conversation = _with_retry(agent.retry, agent.name) do
-                @mock PT.aitools(
-                    conversation;
-                    tools      = all_tools,
-                    model      = agent.model,
-                    return_all = true,
-                    verbose    = false,
-                    agent.api_kwargs...,
+            # ── Final response reached ─────────────────────────────────────────
+            if !isnothing(agent.output_type)
+                result = _extract_output(agent, conversation, verbose)
+                return _finish!(
+                    result,
+                    turn,
+                    t_start,
+                    session,
+                    conversation,
+                    n_seeded,
+                    hooks,
+                    agent,
+                    store,
                 )
             end
 
-            last_msg = conversation[end]
-            turn.llm_calls += 1
-            _accumulate_usage!(turn, last_msg)
-            _fire(hooks.after_llm_call, agent, iteration, last_msg)
-
-            # Tool call response → execute each tool, append results, loop
-            if last_msg isa PT.AIToolRequest && !isempty(last_msg.tool_calls)
-                # should_interrupt: scan all pending tool calls before executing any.
-                # Collect every flagged call so the human sees the full batch at once.
-                if !isnothing(hooks.should_interrupt)
-                    flagged = filter(last_msg.tool_calls) do t
-                        hooks.should_interrupt(t.name, something(t.args, Dict()))
-                    end
-                    if !isempty(flagged)
-                        names = join([t.name for t in flagged], ", ")
-                        if !isnothing(approval_channel)
-                            # Non-blocking path: pause mid-loop and wait for a
-                            # response on the channel. The agent holds all state —
-                            # no re-run needed. The caller puts "approve" to
-                            # proceed, any other string to redirect, or closes
-                            # the channel to abort.
-                            verbose && println("[$(agent.name)] waiting for approval: $(names)")
-                            status = timedwait(approval_timeout) do
-                                isready(approval_channel) || !isopen(approval_channel)
-                            end
-                            if status == :timed_out
-                                throw(ApprovalTimeout(flagged, approval_timeout))
-                            end
-                            if !isopen(approval_channel)
-                                error("[$(agent.name)] approval_channel closed — aborting")
-                            end
-                            response = take!(approval_channel)
-                            # Inject the human's response into the conversation
-                            # so the agent has context when it continues
-                            push!(conversation, PT.UserMessage(response))
-                            if lowercase(strip(response)) != "approve"
-                                # Redirect: skip remaining tool calls this
-                                # iteration and let the LLM re-plan
-                                continue
-                            end
-                        else
-                            # Blocking path: throw and let the caller handle it
-                            throw(HumanInterrupt(flagged;
-                                message = "About to call: $(names)"))
-                        end
-                    end
-                end
-
-                # ── Execute tools (parallel when safe, sequential otherwise) ──
-                # return_direct and Handoff require immediate short-circuit, so
-                # any batch containing those tools falls back to sequential.
-                has_special = any(last_msg.tool_calls) do t
-                    obj = get(tool_map, t.name, nothing)
-                    !isnothing(obj) && (_is_return_direct(obj) || !isempty(agent.sub_agents))
-                end
-                use_parallel = !has_special && length(last_msg.tool_calls) > 1
-
-                if use_parallel
-                    # ── Parallel path ─────────────────────────────────────────
-                    verbose && println("[$(agent.name)] executing $(length(last_msg.tool_calls)) tools in parallel")
-                    for t in last_msg.tool_calls
-                        _fire(hooks.on_tool_call, agent, t.name, t.args)
-                    end
-
-                    tasks = map(last_msg.tool_calls) do t
-                        Threads.@spawn begin
-                            try
-                                (dispatch_tool(tool_map, t.name, t.args), nothing)
-                            catch e
-                                err_str = sprint(showerror, e)
-                                ("Error: $(err_str)", err_str)
-                            end
-                        end
-                    end
-
-                    # Collect results in order
-                    for (i, tool_msg) in enumerate(last_msg.tool_calls)
-                        result, err = fetch(tasks[i])
-                        verbose && println("[$(agent.name)] tool done: $(tool_msg.name)")
-
-                        push!(turn.tool_calls, isnothing(err) ?
-                            ToolEvent(tool_msg.name, something(tool_msg.args, Dict{Symbol,Any}()), result) :
-                            ToolEvent(tool_msg.name, something(tool_msg.args, Dict{Symbol,Any}()); error=err))
-
-                        _fire(hooks.on_tool_result, agent, tool_msg.name, result)
-
-                        tool_msg.content = string(result)
-                        push!(conversation, tool_msg)
-
-                        tool_obj = get(tool_map, tool_msg.name, nothing)
-                        if !isnothing(tool_obj) && _is_return_artifact(tool_obj) &&
-                                isnothing(err) && !isnothing(session) &&
-                                result isa AbstractString && isfile(result)
-                            register_artifact!(session, string(result);
-                                metadata = Dict{String,Any}("tool" => tool_msg.name),
-                                store    = store)
-                        end
-                    end
-                else
-                    # ── Sequential path ───────────────────────────────────────
-                    for tool_msg in last_msg.tool_calls
-                        verbose && println("[$(agent.name)] calling tool: $(tool_msg.name)")
-                        _fire(hooks.on_tool_call, agent, tool_msg.name, tool_msg.args)
-
-                        result = nothing
-                        err    = nothing
-                        try
-                            result = dispatch_tool(tool_map, tool_msg.name, tool_msg.args)
-                        catch e
-                            err    = sprint(showerror, e)
-                            result = "Error: $(err)"
-                        end
-
-                        push!(turn.tool_calls, isnothing(err) ?
-                            ToolEvent(tool_msg.name, something(tool_msg.args, Dict{Symbol,Any}()), result) :
-                            ToolEvent(tool_msg.name, something(tool_msg.args, Dict{Symbol,Any}()); error=err))
-
-                        _fire(hooks.on_tool_result, agent, tool_msg.name, result)
-
-                        # Handoff: surface immediately so run_pipeline! can reroute
-                        if result isa Handoff
-                            _finish!(result, turn, t_start, session, conversation, n_seeded, hooks, agent, store)
-                            return result
-                        end
-
-                        tool_msg.content = string(result)
-                        push!(conversation, tool_msg)
-
-                        tool_obj = get(tool_map, tool_msg.name, nothing)
-
-                        # return_artifact: register result as a session artifact
-                        if !isnothing(tool_obj) && _is_return_artifact(tool_obj) &&
-                                isnothing(err) && !isnothing(session) &&
-                                result isa AbstractString && isfile(result)
-                            register_artifact!(session, string(result);
-                                metadata = Dict{String,Any}("tool" => tool_msg.name),
-                                store    = store)
-                        end
-
-                        # return_direct: skip the next LLM call and return immediately.
-                        if !isnothing(tool_obj) && _is_return_direct(tool_obj) && isnothing(err)
-                            verbose && println("[$(agent.name)] return_direct — short-circuiting after $(tool_msg.name)")
-                            return _finish!(result, turn, t_start, session, conversation, n_seeded, hooks, agent, store)
-                        end
-                    end
-                end
-                continue
+            # If streaming is requested, re-run this final call with a StreamCallback
+            # so tokens flow to on_token as they are generated. We drop the last message
+            # (the blocking response we just got) and redo the call in streaming mode.
+            if !isnothing(on_token)
+                conversation = _stream_final!(
+                    conversation[1:(end - 1)], agent, all_tools, on_token
+                )
+                turn.llm_calls += 1
+                _accumulate_usage!(turn, conversation[end])
             end
+
+            last_msg = conversation[end]
+            result = if last_msg isa PT.AIMessage
+                something(last_msg.content, "")
+            elseif last_msg isa PT.AIToolRequest
+                something(last_msg.content, "")
+            else
+                println(stderr, "[$(agent.name)] unexpected message type: $(typeof(last_msg))")
+                break
+            end
+
+            result = _apply_output_guardrails(
+                result,
+                agent,
+                turn,
+                t_start,
+                session,
+                conversation,
+                n_seeded,
+                hooks,
+                store,
+                verbose,
+            )
+            return _finish!(
+                result, turn, t_start, session, conversation, n_seeded, hooks, agent, store
+            )
         end
 
-        # ── Final response reached ─────────────────────────────────────────
+        println(stderr, "[$(agent.name)] reached max_iterations ($(agent.max_iterations))")
+
         if !isnothing(agent.output_type)
             result = _extract_output(agent, conversation, verbose)
-            return _finish!(result, turn, t_start, session, conversation, n_seeded, hooks, agent, store)
-        end
-
-        # If streaming is requested, re-run this final call with a StreamCallback
-        # so tokens flow to on_token as they are generated. We drop the last message
-        # (the blocking response we just got) and redo the call in streaming mode.
-        if !isnothing(on_token)
-            conversation = _stream_final!(
-                conversation[1:end-1], agent, all_tools, on_token
+            return _finish!(
+                result, turn, t_start, session, conversation, n_seeded, hooks, agent, store
             )
-            turn.llm_calls += 1
-            _accumulate_usage!(turn, conversation[end])
         end
 
-        last_msg = conversation[end]
-        result = if last_msg isa PT.AIMessage
-            something(last_msg.content, "")
-        elseif last_msg isa PT.AIToolRequest
-            something(last_msg.content, "")
-        else
-            println(stderr, "[$(agent.name)] unexpected message type: $(typeof(last_msg))")
-            break
+        for msg in Iterators.reverse(conversation)
+            if msg isa PT.AIMessage
+                return _finish!(
+                    something(msg.content, ""),
+                    turn,
+                    t_start,
+                    session,
+                    conversation,
+                    n_seeded,
+                    hooks,
+                    agent,
+                    store,
+                )
+            end
+            if msg isa PT.AIToolRequest && !isnothing(msg.content)
+                return _finish!(
+                    string(msg.content),
+                    turn,
+                    t_start,
+                    session,
+                    conversation,
+                    n_seeded,
+                    hooks,
+                    agent,
+                    store,
+                )
+            end
         end
-
-        result = _apply_output_guardrails(result, agent, turn, t_start, session,
-                                          conversation, n_seeded, hooks, store, verbose)
-        return _finish!(result, turn, t_start, session, conversation, n_seeded, hooks, agent, store)
-    end
-
-    println(stderr, "[$(agent.name)] reached max_iterations ($(agent.max_iterations))")
-
-    if !isnothing(agent.output_type)
-        result = _extract_output(agent, conversation, verbose)
-        return _finish!(result, turn, t_start, session, conversation, n_seeded, hooks, agent, store)
-    end
-
-    for msg in Iterators.reverse(conversation)
-        if msg isa PT.AIMessage
-            return _finish!(something(msg.content, ""), turn, t_start, session, conversation, n_seeded, hooks, agent, store)
-        end
-        if msg isa PT.AIToolRequest && !isnothing(msg.content)
-            return _finish!(string(msg.content), turn, t_start, session, conversation, n_seeded, hooks, agent, store)
-        end
-    end
-    return _finish!("", turn, t_start, session, conversation, n_seeded, hooks, agent, store)
+        return _finish!(
+            "", turn, t_start, session, conversation, n_seeded, hooks, agent, store
+        )
 
     finally
         _close_mcp_clients(mcp_clients)
@@ -723,8 +957,18 @@ end
 
 # Run output guardrails on a string result. Returns either the (possibly
 # modified) string, or the block reason if a guardrail fires.
-function _apply_output_guardrails(result, agent::Agent, turn, t_start, session,
-                                   conversation, n_seeded, hooks, store, verbose)
+function _apply_output_guardrails(
+    result,
+    agent::Agent,
+    turn,
+    t_start,
+    session,
+    conversation,
+    n_seeded,
+    hooks,
+    store,
+    verbose,
+)
     result isa String || return result   # only applies to string outputs
     isempty(agent.guardrails) && return result
     try
@@ -736,11 +980,18 @@ function _apply_output_guardrails(result, agent::Agent, turn, t_start, session,
 end
 
 # Finalise a turn: stamp elapsed time, save to session, fire on_complete, return result.
-function _finish!(result, turn::TurnEvent, t_start::Float64,
-                  session, conversation, n_seeded::Int,
-                  hooks::AgentHooks, agent::Agent,
-                  store::Union{AbstractSessionStore,Nothing}=nothing)
-    turn.output  = result
+function _finish!(
+    result,
+    turn::TurnEvent,
+    t_start::Float64,
+    session,
+    conversation,
+    n_seeded::Int,
+    hooks::AgentHooks,
+    agent::Agent,
+    store::Union{AbstractSessionStore,Nothing}=nothing,
+)
+    turn.output = result
     turn.elapsed = time() - t_start
 
     if !isnothing(session)
@@ -761,10 +1012,15 @@ end
 # a background task drains the channel and calls on_token for each chunk.
 # Returns the completed conversation (same shape as the blocking PT.aitools call).
 function _stream_final!(conversation, agent::Agent, all_tools, on_token::Function)
-    ch    = Channel{String}(256)
+    ch = Channel{String}(256)
     # Drain the channel in a background task so PT can keep writing without blocking
-    drain = Threads.@spawn begin for tok in ch; on_token(tok); end end
-    cb    = PT.StreamCallback(out = ch)
+    drain = Threads.@spawn begin
+        for tok in ch
+            ;
+            on_token(tok);
+        end
+    end
+    cb = PT.StreamCallback(; out=ch)
 
     # PT.aitools does not support streamcallback — use aigenerate for the final
     # streaming pass (tool calls have already been resolved by this point).
@@ -772,10 +1028,10 @@ function _stream_final!(conversation, agent::Agent, all_tools, on_token::Functio
     result = _with_retry(agent.retry, agent.name) do
         @mock PT.aigenerate(
             conversation;
-            model          = agent.model,
-            return_all     = true,
-            verbose        = false,
-            streamcallback = cb,
+            model=agent.model,
+            return_all=true,
+            verbose=false,
+            streamcallback=cb,
             agent.api_kwargs...,
         )
     end
@@ -790,7 +1046,8 @@ end
 # On parse failure, feed the error back to the LLM and retry up to
 # retry.max_parse_retries times before giving up.
 function _extract_output(agent::Agent, conversation, verbose::Bool)
-    verbose && println("[$(agent.name)] extracting structured output as $(agent.output_type)")
+    verbose &&
+        println("[$(agent.name)] extracting structured output as $(agent.output_type)")
 
     ctx = copy(conversation)
 
@@ -799,9 +1056,9 @@ function _extract_output(agent::Agent, conversation, verbose::Bool)
         msg = _with_retry(agent.retry, agent.name) do
             @mock PT.aiextract(
                 ctx;
-                return_type = agent.output_type,
-                model       = agent.model,
-                verbose     = false,
+                return_type=agent.output_type,
+                model=agent.model,
+                verbose=false,
                 agent.api_kwargs...,
             )
         end
@@ -819,16 +1076,23 @@ function _extract_output(agent::Agent, conversation, verbose::Bool)
         end
 
         if attempt > agent.retry.max_parse_retries
-            error("[$(agent.name)] structured output parse failed after $(attempt) attempt(s): $(parse_err)")
+            error(
+                "[$(agent.name)] structured output parse failed after $(attempt) attempt(s): $(parse_err)",
+            )
         end
 
-        verbose && println("[$(agent.name)] parse attempt $(attempt) failed — re-prompting. $(parse_err)")
+        verbose && println(
+            "[$(agent.name)] parse attempt $(attempt) failed — re-prompting. $(parse_err)",
+        )
 
         # Feed the error back so the model can correct its response
-        push!(ctx, PT.UserMessage(
-            "Your previous response could not be parsed into the required format. " *
-            "Error: $(parse_err)\n" *
-            "Please respond again, strictly following the $(agent.output_type) schema."
-        ))
+        push!(
+            ctx,
+            PT.UserMessage(
+                "Your previous response could not be parsed into the required format. " *
+                "Error: $(parse_err)\n" *
+                "Please respond again, strictly following the $(agent.output_type) schema.",
+            ),
+        )
     end
 end

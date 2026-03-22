@@ -1,7 +1,6 @@
 import PromptingTools as PT
 
 @testset "sub_agents" begin
-
     child_a = Agent(name="ChildA", instructions="I am child A.")
     child_b = Agent(name="ChildB", instructions="I am child B.")
 
@@ -11,9 +10,7 @@ import PromptingTools as PT
 
     # construction with sub_agents
     parent = Agent(
-        name       = "Parent",
-        instructions = "I am the parent.",
-        sub_agents = [child_a, child_b],
+        name="Parent", instructions="I am the parent.", sub_agents=[child_a, child_b]
     )
     @test length(parent.sub_agents) == 2
     @test parent.sub_agents[1].name == "ChildA"
@@ -28,9 +25,9 @@ import PromptingTools as PT
     @test child_a.instructions != child_b.instructions
     fired = Ref(false)
     child_with_hook = Agent(
-        name         = "HookedChild",
-        instructions = "hooked",
-        hooks        = AgentHooks(on_complete = (ag, _) -> (fired[] = true)),
+        name="HookedChild",
+        instructions="hooked",
+        hooks=AgentHooks(on_complete=(ag, _) -> (fired[] = true)),
     )
     @test child_with_hook.hooks.on_complete isa Function
     @test !fired[]
@@ -52,24 +49,30 @@ end
     @test result_empty == Any[]
 
     # Error on empty inputs with reducer
-    @test_throws ErrorException fan_out(stub, String[]; reducer=(a,b)->a*b)
+    @test_throws ErrorException fan_out(stub, String[]; reducer=(a, b)->a*b)
 
     # fan_out returns a Vector by default
     # (We cannot call the real LLM in unit tests, so we test the API/types here.)
     @test fan_out isa Function
 
     # reducer keyword accepted
-    @test applicable(fan_out, stub, String[];
-                     reducer=(a,b)->a, parallel=false, session=nothing, verbose=false) ||
-          true  # just checking the call compiles; function-existence tested above
+    @test applicable(
+        fan_out,
+        stub,
+        String[];
+        reducer=(a, b)->a,
+        parallel=false,
+        session=nothing,
+        verbose=false,
+    ) || true  # just checking the call compiles; function-existence tested above
 
     # parallel keyword accepted
-    @test applicable(fan_out, stub, String[];
-                     parallel=true, session=nothing, verbose=false) || true
+    @test applicable(
+        fan_out, stub, String[]; parallel=true, session=nothing, verbose=false
+    ) || true
 end
 
 @testset "spawn_subagents" begin
-
     agent_a = Agent(name="A", instructions="A")
     agent_b = Agent(name="B", instructions="B")
 
@@ -78,7 +81,7 @@ end
 
     # Type check — pairs must be (Agent, String)
     pairs = [(agent_a, "task for A"), (agent_b, "task for B")]
-    @test pairs isa Vector{Tuple{Agent, String}}
+    @test pairs isa Vector{Tuple{Agent,String}}
 
     # Function exists and is callable
     @test spawn_subagents isa Function

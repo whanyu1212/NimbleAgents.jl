@@ -23,7 +23,7 @@
 # common case of wrapping Claude Code.
 ###############################################################################
 
-import JSON3
+using JSON3: JSON3
 
 # ── ExternalAgentTool ────────────────────────────────────────────────────────
 
@@ -66,44 +66,55 @@ coder = ExternalAgentTool(
 ```
 """
 struct ExternalAgentTool <: AbstractTool
-    name           ::String
-    description    ::String
-    command        ::Vector{String}
-    args           ::Vector{Pair{String, CLIArg}}
-    timeout        ::Float64
-    working_dir    ::Union{String, Nothing}
-    on_output      ::Union{Function, Nothing}
-    parse_result   ::Union{Function, Nothing}
-    return_direct  ::Bool
+    name::String
+    description::String
+    command::Vector{String}
+    args::Vector{Pair{String,CLIArg}}
+    timeout::Float64
+    working_dir::Union{String,Nothing}
+    on_output::Union{Function,Nothing}
+    parse_result::Union{Function,Nothing}
+    return_direct::Bool
     return_artifact::Bool
 
     # Pre-built JSON schema (computed once at construction)
-    parameters  ::Dict{String, Any}
-    strict      ::Union{Bool, Nothing}
+    parameters::Dict{String,Any}
+    strict::Union{Bool,Nothing}
 end
 
 function ExternalAgentTool(;
-    name            ::String,
-    description     ::String,
-    command         ::Vector{String},
-    args            ::Vector{Pair{String, CLIArg}} = Pair{String, CLIArg}[],
-    timeout         ::Float64                      = 300.0,
-    working_dir     ::Union{String, Nothing}       = nothing,
-    on_output       ::Union{Function, Nothing}     = nothing,
-    parse_result    ::Union{Function, Nothing}     = nothing,
-    return_direct   ::Bool                         = false,
-    return_artifact ::Bool                         = false,
-    strict          ::Union{Bool, Nothing}         = nothing,
+    name::String,
+    description::String,
+    command::Vector{String},
+    args::Vector{Pair{String,CLIArg}}=Pair{String,CLIArg}[],
+    timeout::Float64=300.0,
+    working_dir::Union{String,Nothing}=nothing,
+    on_output::Union{Function,Nothing}=nothing,
+    parse_result::Union{Function,Nothing}=nothing,
+    return_direct::Bool=false,
+    return_artifact::Bool=false,
+    strict::Union{Bool,Nothing}=nothing,
 )
     parameters = _cli_schema(args)
-    ExternalAgentTool(name, description, command, args, timeout, working_dir,
-                      on_output, parse_result, return_direct, return_artifact,
-                      parameters, strict)
+    ExternalAgentTool(
+        name,
+        description,
+        command,
+        args,
+        timeout,
+        working_dir,
+        on_output,
+        parse_result,
+        return_direct,
+        return_artifact,
+        parameters,
+        strict,
+    )
 end
 
 # ── Subprocess execution with line-by-line streaming ─────────────────────────
 
-function _run_external_agent(tool::ExternalAgentTool, args::Dict{Symbol, <:Any})
+function _run_external_agent(tool::ExternalAgentTool, args::Dict{Symbol,<:Any})
     cmd = _render_command_ext(tool, args)
 
     if !isnothing(tool.working_dir)
@@ -114,7 +125,7 @@ function _run_external_agent(tool::ExternalAgentTool, args::Dict{Symbol, <:Any})
     stdout_lines = String[]
 
     # Start subprocess with stdout as a readable pipe
-    proc = open(pipeline(cmd, stderr=stderr_buf), "r")
+    proc = open(pipeline(cmd; stderr=stderr_buf), "r")
 
     timed_out = Ref(false)
 
@@ -186,7 +197,7 @@ function _run_external_agent(tool::ExternalAgentTool, args::Dict{Symbol, <:Any})
 end
 
 # Reuse CLITool's placeholder substitution logic
-function _render_command_ext(tool::ExternalAgentTool, args::Dict{Symbol, <:Any})
+function _render_command_ext(tool::ExternalAgentTool, args::Dict{Symbol,<:Any})
     rendered = map(tool.command) do token
         result = token
         for (arg_name, _) in tool.args
@@ -201,8 +212,10 @@ end
 
 # ── Tool interface ───────────────────────────────────────────────────────────
 
-_call_tool(tool::ExternalAgentTool, args::Dict{Symbol, <:Any}) = _run_external_agent(tool, args)
-_is_return_direct(t::ExternalAgentTool)   = t.return_direct
+function _call_tool(tool::ExternalAgentTool, args::Dict{Symbol,<:Any})
+    _run_external_agent(tool, args)
+end
+_is_return_direct(t::ExternalAgentTool) = t.return_direct
 _is_return_artifact(t::ExternalAgentTool) = t.return_artifact
 
 # ── Claude Code convenience constructor ──────────────────────────────────────
@@ -271,27 +284,35 @@ coder_latest = claude_code_tool(resume = true, working_dir = "/path/to/repo")
 ```
 """
 function claude_code_tool(;
-    name            ::String                       = "claude_code",
-    description     ::String                       = """Delegate a coding task to Claude Code — an autonomous coding agent.
+    name::String="claude_code",
+    description::String="""Delegate a coding task to Claude Code — an autonomous coding agent.
 It can read, write, and edit files, run shell commands, search code, and manage git.
 Use this for implementation work: writing code, fixing bugs, refactoring, running tests.
 The task should be a clear, specific description of what to do.""",
-    model           ::String                       = "sonnet",
-    working_dir     ::Union{String, Nothing}       = nothing,
-    timeout         ::Float64                      = 300.0,
-    max_budget      ::Union{Float64, Nothing}      = nothing,
-    permission_mode ::String                       = "bypassPermissions",
-    allowed_tools   ::Union{Vector{String}, Nothing} = nothing,
-    on_output       ::Union{Function, Nothing}     = nothing,
-    system_prompt   ::Union{String, Nothing}       = nothing,
-    session_id      ::Union{String, Nothing}       = nothing,
-    resume          ::Bool                         = false,
-    extra_flags     ::Vector{String}               = String[],
+    model::String="sonnet",
+    working_dir::Union{String,Nothing}=nothing,
+    timeout::Float64=300.0,
+    max_budget::Union{Float64,Nothing}=nothing,
+    permission_mode::String="bypassPermissions",
+    allowed_tools::Union{Vector{String},Nothing}=nothing,
+    on_output::Union{Function,Nothing}=nothing,
+    system_prompt::Union{String,Nothing}=nothing,
+    session_id::Union{String,Nothing}=nothing,
+    resume::Bool=false,
+    extra_flags::Vector{String}=String[],
 )
-    cmd = ["claude", "-p", "{task}",
-           "--output-format", "stream-json", "--verbose",
-           "--model", model,
-           "--permission-mode", permission_mode]
+    cmd = [
+        "claude",
+        "-p",
+        "{task}",
+        "--output-format",
+        "stream-json",
+        "--verbose",
+        "--model",
+        model,
+        "--permission-mode",
+        permission_mode,
+    ]
 
     !isnothing(max_budget) && append!(cmd, ["--max-budget-usd", string(max_budget)])
     !isnothing(allowed_tools) && append!(cmd, ["--allowedTools", join(allowed_tools, ",")])
@@ -303,15 +324,15 @@ The task should be a clear, specific description of what to do.""",
     end
     append!(cmd, extra_flags)
 
-    ExternalAgentTool(
-        name         = name,
-        description  = description,
-        command      = cmd,
-        args         = ["task" => CLIArg(String, "Clear description of the coding task to perform.")],
-        timeout      = timeout,
-        working_dir  = working_dir,
-        on_output    = on_output,
-        parse_result = _parse_claude_code_result,
+    ExternalAgentTool(;
+        name=name,
+        description=description,
+        command=cmd,
+        args=["task" => CLIArg(String, "Clear description of the coding task to perform.")],
+        timeout=timeout,
+        working_dir=working_dir,
+        on_output=on_output,
+        parse_result=_parse_claude_code_result,
     )
 end
 
@@ -326,27 +347,27 @@ coder = codex_tool(working_dir="/path/to/repo")
 ```
 """
 function codex_tool(;
-    name        ::String                       = "codex",
-    description ::String                       = """Delegate a coding task to Codex — an autonomous coding agent.
+    name::String="codex",
+    description::String="""Delegate a coding task to Codex — an autonomous coding agent.
 It can read, write, and edit files, run commands, and manage code.
 The task should be a clear, specific description of what to do.""",
-    model       ::String                       = "o4-mini",
-    working_dir ::Union{String, Nothing}       = nothing,
-    timeout     ::Float64                      = 300.0,
-    on_output   ::Union{Function, Nothing}     = nothing,
-    extra_flags ::Vector{String}               = String[],
+    model::String="o4-mini",
+    working_dir::Union{String,Nothing}=nothing,
+    timeout::Float64=300.0,
+    on_output::Union{Function,Nothing}=nothing,
+    extra_flags::Vector{String}=String[],
 )
     cmd = ["codex", "-q", "{task}", "--model", model]
     append!(cmd, extra_flags)
 
-    ExternalAgentTool(
-        name        = name,
-        description = description,
-        command     = cmd,
-        args        = ["task" => CLIArg(String, "Clear description of the coding task to perform.")],
-        timeout     = timeout,
-        working_dir = working_dir,
-        on_output   = on_output,
+    ExternalAgentTool(;
+        name=name,
+        description=description,
+        command=cmd,
+        args=["task" => CLIArg(String, "Clear description of the coding task to perform.")],
+        timeout=timeout,
+        working_dir=working_dir,
+        on_output=on_output,
     )
 end
 

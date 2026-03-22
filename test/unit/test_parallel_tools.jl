@@ -12,14 +12,16 @@ import PromptingTools as PT
 _ai_msg_p(text) = PT.AIMessage(; content=text, tokens=(10, 10), elapsed=0.1)
 
 function _multi_tool_request(calls::Vector{<:Pair{String}})
-    tms = [PT.ToolMessage(
-        content      = nothing,
-        raw          = "",
-        tool_call_id = "call_$(name)_$(i)",
-        name         = name,
-        args         = Dict{Symbol,Any}(Symbol(k) => v for (k,v) in args),
-    ) for (i, (name, args)) in enumerate(calls)]
-    PT.AIToolRequest(; tool_calls=tms, content="", tokens=(5,5), elapsed=0.1)
+    tms = [
+        PT.ToolMessage(;
+            content=nothing,
+            raw="",
+            tool_call_id="call_$(name)_$(i)",
+            name=name,
+            args=Dict{Symbol,Any}(Symbol(k) => v for (k, v) in args),
+        ) for (i, (name, args)) in enumerate(calls)
+    ]
+    PT.AIToolRequest(; tool_calls=tms, content="", tokens=(5, 5), elapsed=0.1)
 end
 
 # Tool fixtures (par_add_tool, par_single_tool, etc.) are defined in runtests.jl
@@ -32,10 +34,13 @@ end
     patch = @patch function PT.aitools(conv; kwargs...)
         call_count[] += 1
         if call_count[] == 1
-            push!(conv, _multi_tool_request([
-                "par_add" => Dict("x" => 1, "y" => 2),
-                "par_add" => Dict("x" => 10, "y" => 20),
-            ]))
+            push!(
+                conv,
+                _multi_tool_request([
+                    "par_add" => Dict("x" => 1, "y" => 2),
+                    "par_add" => Dict("x" => 10, "y" => 20),
+                ]),
+            )
         else
             push!(conv, _ai_msg_p("Results: 3 and 30"))
         end
@@ -43,10 +48,10 @@ end
     end
 
     apply(patch) do
-        agent   = Agent(name="Bot", instructions="test", tools=[par_add_tool])
+        agent = Agent(name="Bot", instructions="test", tools=[par_add_tool])
         session = Session(app_name="App", user_id="u")
 
-        t0     = time()
+        t0 = time()
         result = run!(agent, "add both"; session, verbose=false)
         elapsed = time() - t0
 
@@ -66,9 +71,7 @@ end
     patch = @patch function PT.aitools(conv; kwargs...)
         call_count[] += 1
         if call_count[] == 1
-            push!(conv, _multi_tool_request([
-                "par_single" => Dict("x" => 5),
-            ]))
+            push!(conv, _multi_tool_request(["par_single" => Dict("x" => 5)]))
         else
             push!(conv, _ai_msg_p("result: 10"))
         end
@@ -76,7 +79,7 @@ end
     end
 
     apply(patch) do
-        agent  = Agent(name="Bot", instructions="test", tools=[par_single_tool])
+        agent = Agent(name="Bot", instructions="test", tools=[par_single_tool])
         result = run!(agent, "double 5"; verbose=false)
         @test result == "result: 10"
     end
@@ -88,17 +91,20 @@ end
     call_count = Ref(0)
     patch = @patch function PT.aitools(conv; kwargs...)
         call_count[] += 1
-        push!(conv, _multi_tool_request([
-            "rd_normal" => Dict("x" => 1),
-            "rd_direct" => Dict("x" => 2),
-        ]))
+        push!(
+            conv,
+            _multi_tool_request([
+                "rd_normal" => Dict("x" => 1), "rd_direct" => Dict("x" => 2)
+            ]),
+        )
         conv
     end
 
     # Uses rd_normal_tool and rd_direct_tool from runtests.jl fixtures
     apply(patch) do
-        agent  = Agent(name="Bot", instructions="test",
-                       tools=[rd_normal_tool, rd_direct_tool])
+        agent = Agent(
+            name="Bot", instructions="test", tools=[rd_normal_tool, rd_direct_tool]
+        )
         result = run!(agent, "go"; verbose=false)
 
         # return_direct should short-circuit — result is from rd_direct
@@ -114,10 +120,12 @@ end
     patch = @patch function PT.aitools(conv; kwargs...)
         call_count[] += 1
         if call_count[] == 1
-            push!(conv, _multi_tool_request([
-                "par_seq_a" => Dict("x" => 1),
-                "par_seq_b" => Dict("x" => 2),
-            ]))
+            push!(
+                conv,
+                _multi_tool_request([
+                    "par_seq_a" => Dict("x" => 1), "par_seq_b" => Dict("x" => 2)
+                ]),
+            )
         else
             push!(conv, _ai_msg_p("done"))
         end
@@ -126,11 +134,15 @@ end
 
     apply(patch) do
         sub = Agent(name="Sub", instructions="sub agent")
-        agent = Agent(name="Bot", instructions="test",
-                      tools=[par_seq_a_tool, par_seq_b_tool], sub_agents=[sub])
+        agent = Agent(
+            name="Bot",
+            instructions="test",
+            tools=[par_seq_a_tool, par_seq_b_tool],
+            sub_agents=[sub],
+        )
 
         session = Session(app_name="App", user_id="u")
-        result  = run!(agent, "go"; session, verbose=false)
+        result = run!(agent, "go"; session, verbose=false)
 
         @test result == "done"
         # Both tools executed sequentially
@@ -145,10 +157,12 @@ end
     patch = @patch function PT.aitools(conv; kwargs...)
         call_count[] += 1
         if call_count[] == 1
-            push!(conv, _multi_tool_request([
-                "par_good" => Dict("x" => 1),
-                "par_bad"  => Dict("x" => 2),
-            ]))
+            push!(
+                conv,
+                _multi_tool_request([
+                    "par_good" => Dict("x" => 1), "par_bad" => Dict("x" => 2)
+                ]),
+            )
         else
             push!(conv, _ai_msg_p("handled"))
         end
@@ -156,10 +170,9 @@ end
     end
 
     apply(patch) do
-        agent   = Agent(name="Bot", instructions="test",
-                        tools=[par_good_tool, par_bad_tool])
+        agent = Agent(name="Bot", instructions="test", tools=[par_good_tool, par_bad_tool])
         session = Session(app_name="App", user_id="u")
-        result  = run!(agent, "go"; session, verbose=false)
+        result = run!(agent, "go"; session, verbose=false)
 
         @test result == "handled"
         # Error should be recorded in the tool event
@@ -178,10 +191,12 @@ end
     patch = @patch function PT.aitools(conv; kwargs...)
         call_count[] += 1
         if call_count[] == 1
-            push!(conv, _multi_tool_request([
-                "par_hook_a" => Dict("x" => 1),
-                "par_hook_b" => Dict("x" => 2),
-            ]))
+            push!(
+                conv,
+                _multi_tool_request([
+                    "par_hook_a" => Dict("x" => 1), "par_hook_b" => Dict("x" => 2)
+                ]),
+            )
         else
             push!(conv, _ai_msg_p("done"))
         end
@@ -191,11 +206,15 @@ end
     apply(patch) do
         log = String[]
         hooks = AgentHooks(
-            on_tool_call   = (ag, name, args) -> push!(log, "call:$name"),
-            on_tool_result = (ag, name, res)  -> push!(log, "result:$name"),
+            on_tool_call=(ag, name, args) -> push!(log, "call:$name"),
+            on_tool_result=(ag, name, res) -> push!(log, "result:$name"),
         )
-        agent = Agent(name="Bot", instructions="test",
-                      tools=[par_hook_a_tool, par_hook_b_tool], hooks=hooks)
+        agent = Agent(
+            name="Bot",
+            instructions="test",
+            tools=[par_hook_a_tool, par_hook_b_tool],
+            hooks=hooks,
+        )
 
         run!(agent, "go"; verbose=false)
 

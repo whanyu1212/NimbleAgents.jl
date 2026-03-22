@@ -28,9 +28,9 @@ construct directly with an explicit `path`.
 - `path::String`: Absolute path to the skill directory.
 """
 struct Skill
-    name        ::String
-    description ::String
-    path        ::String
+    name::String
+    description::String
+    path::String
 end
 
 # ── YAML frontmatter parser ───────────────────────────────────────────────────
@@ -51,16 +51,16 @@ function _parse_frontmatter(content::String)
     startswith(content, "---") || return nothing
 
     # Find closing ---
-    rest  = content[4:end]
+    rest = content[4:end]
     close = findfirst(r"\n---(\n|$)", rest)
     isnothing(close) && return nothing
 
-    fm_text = rest[1:first(close)-1]
+    fm_text = rest[1:(first(close) - 1)]
 
-    name        = ""
+    name = ""
     description = ""
     current_key = ""
-    desc_lines  = String[]
+    desc_lines = String[]
 
     for line in split(fm_text, "\n")
         # New key: name or description
@@ -90,14 +90,14 @@ function _parse_frontmatter(content::String)
     end
 
     (isempty(name) || isempty(description)) && return nothing
-    (name = name, description = description)
+    (name=name, description=description)
 end
 
 # Return the body of SKILL.md (everything after the closing ---)
 function _skill_body(content::String)
     m = match(r"^---.*?---\s*\n?"s, content)
     isnothing(m) && return content
-    content[length(m.match) + 1:end]
+    content[(length(m.match) + 1):end]
 end
 
 # ── Discovery ─────────────────────────────────────────────────────────────────
@@ -163,31 +163,32 @@ end
 # Registered automatically when an agent has skills configured.
 function _read_skill_tool(skills::Vector{Skill})
     skill_map = Dict(s.name => s for s in skills)
-    names     = join(keys(skill_map), ", ")
+    names = join(keys(skill_map), ", ")
 
-    NimbleTool(
-        name        = "read_skill",
-        description = "Load the full instructions for a skill. " *
-                      "Available skills: $(names).",
-        parameters  = Dict{String,Any}(
-            "type"       => "object",
+    NimbleTool(;
+        name="read_skill",
+        description="Load the full instructions for a skill. " *
+                    "Available skills: $(names).",
+        parameters=Dict{String,Any}(
+            "type" => "object",
             "properties" => Dict{String,Any}(
                 "name" => Dict{String,Any}(
-                    "type"        => "string",
+                    "type" => "string",
                     "description" => "The skill name to load (one of: $(names)).",
                 ),
             ),
-            "required"   => ["name"],
+            "required" => ["name"],
         ),
-        callable     = (name::String) -> begin
+        callable=(name::String) -> begin
             s = get(skill_map, name, nothing)
-            isnothing(s) && return "Error: skill '$(name)' not found. Available: $(names)."
+            isnothing(s) &&
+                return "Error: skill '$(name)' not found. Available: $(names)."
             skill_md = joinpath(s.path, "SKILL.md")
             isfile(skill_md) || return "Error: SKILL.md not found at $(skill_md)."
             body = _skill_body(read(skill_md, String))
             isempty(strip(body)) ? "Skill '$(name)' has no instructions body." : body
         end,
-        return_direct = false,
-        strict        = nothing,
+        return_direct=false,
+        strict=nothing,
     )
 end

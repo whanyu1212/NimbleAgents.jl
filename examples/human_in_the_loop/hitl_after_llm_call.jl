@@ -56,7 +56,7 @@ end
 const INTERNAL_DOMAIN = "company.com"
 
 function smart_hitl_hook(agent, iteration, msg)
-    isempty(something(msg.tool_calls, [])) && return
+    isempty(something(msg.tool_calls, [])) && return nothing
 
     pending = filter(msg.tool_calls) do t
         args = something(t.args, Dict())
@@ -73,41 +73,45 @@ function smart_hitl_hook(agent, iteration, msg)
         end
     end
 
-    isempty(pending) && return
+    isempty(pending) && return nothing
 
     # Build a detailed approval message showing argument values
     lines = map(pending) do t
-        args    = something(t.args, Dict())
+        args = something(t.args, Dict())
         arg_str = join(["    $(k) = $(repr(v))" for (k, v) in pairs(args)], "\n")
         "  • $(t.name)\n$(arg_str)"
     end
 
-    throw(HumanInterrupt(pending;
-        message = "The agent wants to:\n\n" * join(lines, "\n\n")))
+    throw(HumanInterrupt(pending; message="The agent wants to:\n\n" * join(lines, "\n\n")))
 end
 
 # ── Agent ─────────────────────────────────────────────────────────────────────
 
-agent = Agent(
-    name         = "OpsBot",
-    instructions = """
-    You are an operations assistant. You can read files, list directories,
-    send emails, and delete files. Always complete the user's request.
-    """,
-    tools = [send_email, delete_file, read_file, list_files],
-    model = "gpt-5.4-nano-2026-03-17",
-    hooks = AgentHooks(after_llm_call = smart_hitl_hook),
+agent = Agent(;
+    name="OpsBot",
+    instructions="""
+  You are an operations assistant. You can read files, list directories,
+  send emails, and delete files. Always complete the user's request.
+  """,
+    tools=[send_email, delete_file, read_file, list_files],
+    model="gpt-5.4-nano-2026-03-17",
+    hooks=AgentHooks(; after_llm_call=smart_hitl_hook),
 )
 
 # ── Approval loop ─────────────────────────────────────────────────────────────
 
 function ask_human(interrupt::HumanInterrupt)::String
-    tprintln(Panel(
-        "[bold red]Approval Required[/bold red]\n\n" *
-        interrupt.message * "\n\n" *
-        "[dim]Type [bold]approve[/bold] to allow, or describe what to do instead:[/dim]",
-        title = "HITL", style = "red", padding = (1, 2),
-    ))
+    tprintln(
+        Panel(
+            "[bold red]Approval Required[/bold red]\n\n" *
+            interrupt.message *
+            "\n\n" *
+            "[dim]Type [bold]approve[/bold] to allow, or describe what to do instead:[/dim]";
+            title="HITL",
+            style="red",
+            padding=(1, 2),
+        ),
+    )
     print("> ")
     strip(readline())
 end
@@ -131,52 +135,66 @@ end
 
 # ── Example 1 — delete safe path (no interrupt) ───────────────────────────────
 
-tprintln(Panel(
-    "Example 1 — delete /tmp/ path (not production)\nNo approval needed — path does not start with /prod/.",
-    title = "after_llm_call", style = "cyan", padding = (0, 2),
-))
+tprintln(
+    Panel(
+        "Example 1 — delete /tmp/ path (not production)\nNo approval needed — path does not start with /prod/.";
+        title="after_llm_call",
+        style="cyan",
+        padding=(0, 2),
+    ),
+)
 
-session1 = Session(app_name="hitl", user_id="user")
-result1  = run_with_hitl(agent,
-    "Delete the file /tmp/old_backup.log",
-    session1)
+session1 = Session(; app_name="hitl", user_id="user")
+result1 = run_with_hitl(agent, "Delete the file /tmp/old_backup.log", session1)
 println(result1, "\n")
 
 # ── Example 2 — delete production path (interrupt) ────────────────────────────
 
-tprintln(Panel(
-    "Example 2 — delete /prod/ path\nApproval required — production path detected.",
-    title = "after_llm_call", style = "yellow", padding = (0, 2),
-))
+tprintln(
+    Panel(
+        "Example 2 — delete /prod/ path\nApproval required — production path detected.";
+        title="after_llm_call",
+        style="yellow",
+        padding=(0, 2),
+    ),
+)
 
-session2 = Session(app_name="hitl", user_id="user")
-result2  = run_with_hitl(agent,
-    "Delete /prod/database/users.db — it is no longer needed",
-    session2)
+session2 = Session(; app_name="hitl", user_id="user")
+result2 = run_with_hitl(
+    agent, "Delete /prod/database/users.db — it is no longer needed", session2
+)
 println(result2, "\n")
 
 # ── Example 3 — external email (interrupt) ────────────────────────────────────
 
-tprintln(Panel(
-    "Example 3 — email to external domain\nApproval required — recipient is outside $(INTERNAL_DOMAIN).",
-    title = "after_llm_call", style = "magenta", padding = (0, 2),
-))
+tprintln(
+    Panel(
+        "Example 3 — email to external domain\nApproval required — recipient is outside $(INTERNAL_DOMAIN).";
+        title="after_llm_call",
+        style="magenta",
+        padding=(0, 2),
+    ),
+)
 
-session3 = Session(app_name="hitl", user_id="user")
-result3  = run_with_hitl(agent,
-    "Send our Q1 report to partner@external-vendor.com",
-    session3)
+session3 = Session(; app_name="hitl", user_id="user")
+result3 = run_with_hitl(
+    agent, "Send our Q1 report to partner@external-vendor.com", session3
+)
 println(result3, "\n")
 
 # ── Example 4 — internal email (no interrupt) ─────────────────────────────────
 
-tprintln(Panel(
-    "Example 4 — email to internal domain\nNo approval needed — recipient is @$(INTERNAL_DOMAIN).",
-    title = "after_llm_call", style = "green", padding = (0, 2),
-))
+tprintln(
+    Panel(
+        "Example 4 — email to internal domain\nNo approval needed — recipient is @$(INTERNAL_DOMAIN).";
+        title="after_llm_call",
+        style="green",
+        padding=(0, 2),
+    ),
+)
 
-session4 = Session(app_name="hitl", user_id="user")
-result4  = run_with_hitl(agent,
-    "Email alice@company.com to let her know the deployment is done",
-    session4)
+session4 = Session(; app_name="hitl", user_id="user")
+result4 = run_with_hitl(
+    agent, "Email alice@company.com to let her know the deployment is done", session4
+)
 println(result4, "\n")

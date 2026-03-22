@@ -74,6 +74,17 @@ end
     x + y
 end
 
+# Fixtures for test_trim.jl
+@tool max_output=10_000 function trim_test(x::String)
+    "A tool with a per-tool output limit."
+    x
+end
+
+@tool function trim_default(x::String)
+    "A tool with no per-tool output limit."
+    x
+end
+
 function timed_include(path)
     t0 = time()
     include(path)
@@ -82,9 +93,10 @@ function timed_include(path)
 end
 
 @testset "Aqua" begin
-    Aqua.test_all(NimbleAgents;
-        stale_deps  = (ignore = [:Test, :DotEnv, :Term],),
-        deps_compat = (ignore = [:Test],),
+    Aqua.test_all(
+        NimbleAgents;
+        stale_deps=(ignore=[:Test, :DotEnv, :Term],),
+        deps_compat=(ignore=[:Test],),
     )
 end
 
@@ -113,4 +125,5 @@ end
     timed_include("unit/test_sqlite_memory.jl")
     timed_include("unit/test_gemini.jl")
     timed_include("unit/test_repl.jl")
+    timed_include("unit/test_trim.jl")
 end

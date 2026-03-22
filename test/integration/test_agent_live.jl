@@ -22,11 +22,11 @@ end
 
 # ── Build the agent ───────────────────────────────────────────────────────────
 
-agent = Agent(
-    name         = "MathBot",
-    instructions = """You are a helpful assistant that can do arithmetic and string operations.
+agent = Agent(;
+    name="MathBot",
+    instructions="""You are a helpful assistant that can do arithmetic and string operations.
 Always use tools to compute answers rather than doing the math yourself.""",
-    tools        = [add_tool, multiply_tool, to_uppercase_tool],
+    tools=[add_tool, multiply_tool, to_uppercase_tool],
 )
 
 println("=" ^ 60)

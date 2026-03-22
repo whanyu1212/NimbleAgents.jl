@@ -1,8 +1,8 @@
 @testset "Skill struct" begin
     s = Skill("my-skill", "Does things.", "/some/path")
-    @test s.name        == "my-skill"
+    @test s.name == "my-skill"
     @test s.description == "Does things."
-    @test s.path        == "/some/path"
+    @test s.path == "/some/path"
 end
 
 @testset "_parse_frontmatter" begin
@@ -17,7 +17,7 @@ Review the code carefully.
 """
     fm = NimbleAgents._parse_frontmatter(content)
     @test !isnothing(fm)
-    @test fm.name        == "code-reviewer"
+    @test fm.name == "code-reviewer"
     @test fm.description == "Reviews Julia code for style and correctness."
 
     # No frontmatter → nothing
@@ -46,27 +46,33 @@ end
     mkpath(skill1_dir)
     mkpath(skill2_dir)
 
-    write(joinpath(skill1_dir, "SKILL.md"), """---
+    write(
+        joinpath(skill1_dir, "SKILL.md"),
+        """---
 name: julia-expert
 description: Expert Julia programming assistant.
 ---
 
 You are an expert Julia programmer.
-""")
-    write(joinpath(skill2_dir, "SKILL.md"), """---
+""",
+    )
+    write(
+        joinpath(skill2_dir, "SKILL.md"),
+        """---
 name: code-reviewer
 description: Reviews code for quality issues.
 ---
 
 Review all code carefully.
-""")
+""",
+    )
     # A dir without SKILL.md — should be ignored
     mkpath(joinpath(dir, "no-skill"))
 
     skills = discover_skills([dir])
     @test length(skills) == 2
     names = Set(s.name for s in skills)
-    @test "julia-expert"  in names
+    @test "julia-expert" in names
     @test "code-reviewer" in names
 
     # Non-existent dir → empty, no error
@@ -77,15 +83,12 @@ Review all code carefully.
 end
 
 @testset "_skills_prompt" begin
-    skills = [
-        Skill("foo", "Does foo.", "/tmp/foo"),
-        Skill("bar", "Does bar.", "/tmp/bar"),
-    ]
+    skills = [Skill("foo", "Does foo.", "/tmp/foo"), Skill("bar", "Does bar.", "/tmp/bar")]
 
     prompt = NimbleAgents._skills_prompt(skills)
-    @test occursin("foo",      prompt)
+    @test occursin("foo", prompt)
     @test occursin("Does foo", prompt)
-    @test occursin("bar",      prompt)
+    @test occursin("bar", prompt)
     @test occursin("Does bar", prompt)
 
     # Empty skills → empty string (no injection)
@@ -96,13 +99,16 @@ end
     dir = mktempdir()
     skill_dir = joinpath(dir, "test-skill")
     mkpath(skill_dir)
-    write(joinpath(skill_dir, "SKILL.md"), """---
+    write(
+        joinpath(skill_dir, "SKILL.md"),
+        """---
 name: test-skill
 description: A test skill.
 ---
 
 These are the full instructions for test-skill.
-""")
+""",
+    )
 
     skills = discover_skills([dir])
     @test length(skills) == 1

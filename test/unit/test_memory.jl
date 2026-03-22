@@ -14,10 +14,13 @@
 end
 
 @testset "MemoryEntry — custom metadata and session_id" begin
-    meta = Dict{String, Any}("category" => "preference")
+    meta = Dict{String,Any}("category" => "preference")
     entry = MemoryEntry(
-        content="Prefers tabs", user_id="bob", app_name="IDE",
-        metadata=meta, source_session_id="sess-123",
+        content="Prefers tabs",
+        user_id="bob",
+        app_name="IDE",
+        metadata=meta,
+        source_session_id="sess-123",
     )
     @test entry.metadata["category"] == "preference"
     @test entry.source_session_id == "sess-123"
@@ -103,7 +106,7 @@ end
 @testset "InMemoryMemoryService — list filtering" begin
     mem = InMemoryMemoryService()
     add_memory!(mem, "A"; user_id="alice", app_name="App1")
-    add_memory!(mem, "B"; user_id="bob",   app_name="App1")
+    add_memory!(mem, "B"; user_id="bob", app_name="App1")
     add_memory!(mem, "C"; user_id="alice", app_name="App2")
 
     @test length(list_memories(mem)) == 3

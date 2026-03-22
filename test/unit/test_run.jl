@@ -18,14 +18,14 @@ _ai_msg(text) = PT.AIMessage(; content=text, tokens=(10, 10), elapsed=0.1)
 # Build a fake tool request: LLM wants to call `tool_name` with `args`
 function _tool_request(tool_name::String, args::Dict; content="")
     # PT uses ToolMessage inside AIToolRequest.tool_calls
-    tm = PT.ToolMessage(
-        content      = nothing,
-        raw          = "",
-        tool_call_id = "call_$(tool_name)",
-        name         = tool_name,
-        args         = Dict{Symbol,Any}(Symbol(k) => v for (k,v) in args),
+    tm = PT.ToolMessage(;
+        content=nothing,
+        raw="",
+        tool_call_id="call_$(tool_name)",
+        name=tool_name,
+        args=Dict{Symbol,Any}(Symbol(k) => v for (k, v) in args),
     )
-    PT.AIToolRequest(; tool_calls=[tm], content=content, tokens=(5,5), elapsed=0.1)
+    PT.AIToolRequest(; tool_calls=[tm], content=content, tokens=(5, 5), elapsed=0.1)
 end
 
 # ── Basic text response ───────────────────────────────────────────────────────
@@ -37,7 +37,7 @@ end
     end
 
     apply(patch) do
-        agent  = Agent(name="Bot", instructions="Be helpful.")
+        agent = Agent(name="Bot", instructions="Be helpful.")
         result = run!(agent, "Hello"; verbose=false)
         @test result == "Hello back!"
         @test result isa String
@@ -57,8 +57,9 @@ end
     end
 
     apply(patch) do
-        dyn = (session, agent) -> "You are helping $(session.user_id). Agent: $(agent.name)."
-        agent   = Agent(name="DynBot", instructions=dyn)
+        dyn =
+            (session, agent) -> "You are helping $(session.user_id). Agent: $(agent.name)."
+        agent = Agent(name="DynBot", instructions=dyn)
         session = Session(app_name="App", user_id="alice")
 
         result = run!(agent, "Hi"; session, verbose=false)
@@ -77,7 +78,7 @@ end
     end
 
     apply(patch) do
-        dyn   = (session, agent) -> "No session: $(isnothing(session))"
+        dyn = (session, agent) -> "No session: $(isnothing(session))"
         agent = Agent(name="DynBot", instructions=dyn)
 
         result = run!(agent, "Hi"; verbose=false)
@@ -99,9 +100,9 @@ end
 
     apply(patch) do
         agent = Agent(
-            name         = "ReasonBot",
-            instructions = "Think hard.",
-            api_kwargs   = (; reasoning = Dict("effort" => "high"), temperature = 0.5),
+            name="ReasonBot",
+            instructions="Think hard.",
+            api_kwargs=(; reasoning=Dict("effort" => "high"), temperature=0.5),
         )
 
         result = run!(agent, "Solve this"; verbose=false)
@@ -134,7 +135,7 @@ end
     end
 
     apply(patch) do
-        agent   = Agent(name="Bot", instructions="test")
+        agent = Agent(name="Bot", instructions="test")
         session = Session(app_name="App", user_id="u")
 
         run!(agent, "Hello"; session, verbose=false)
@@ -160,10 +161,10 @@ end
     end
 
     apply(patch) do
-        agent   = Agent(name="Bot", instructions="test")
+        agent = Agent(name="Bot", instructions="test")
         session = Session(app_name="App", user_id="u")
 
-        run!(agent, "first";  session, verbose=false)
+        run!(agent, "first"; session, verbose=false)
         run!(agent, "second"; session, verbose=false)
 
         # Two turns → 2 events
@@ -196,7 +197,7 @@ end
             x + y
         end
 
-        agent  = Agent(name="Bot", instructions="test", tools=[add_tool])
+        agent = Agent(name="Bot", instructions="test", tools=[add_tool])
         result = run!(agent, "What is 3+4?"; verbose=false)
 
         @test result == "The answer is 7"
@@ -224,7 +225,7 @@ end
             "Hello, $(name)!"
         end
 
-        agent   = Agent(name="Bot", instructions="test", tools=[greet_agent_tool])
+        agent = Agent(name="Bot", instructions="test", tools=[greet_agent_tool])
         session = Session(app_name="App", user_id="u")
         run!(agent, "Greet Alice"; session, verbose=false)
 
@@ -252,7 +253,7 @@ end
             "42"
         end
 
-        agent  = Agent(name="Bot", instructions="test", tools=[cached_lookup_tool])
+        agent = Agent(name="Bot", instructions="test", tools=[cached_lookup_tool])
         result = run!(agent, "What is the answer?"; verbose=false)
 
         @test result == "42"
@@ -270,7 +271,7 @@ end
 
     apply(patch) do
         completed = Ref(false)
-        hooks = AgentHooks(on_complete = (ag, result) -> (completed[] = true))
+        hooks = AgentHooks(on_complete=(ag, result) -> (completed[] = true))
         agent = Agent(name="Bot", instructions="test", hooks=hooks)
 
         run!(agent, "go"; verbose=false)
@@ -300,11 +301,10 @@ end
 
         log = String[]
         hooks = AgentHooks(
-            on_tool_call   = (ag, name, args) -> push!(log, "call:$name"),
-            on_tool_result = (ag, name, res)  -> push!(log, "result:$name"),
+            on_tool_call=(ag, name, args) -> push!(log, "call:$name"),
+            on_tool_result=(ag, name, res) -> push!(log, "result:$name"),
         )
-        agent = Agent(name="Bot", instructions="test",
-                      tools=[echo_hook_tool], hooks=hooks)
+        agent = Agent(name="Bot", instructions="test", tools=[echo_hook_tool], hooks=hooks)
 
         run!(agent, "echo hi"; verbose=false)
         @test log == ["call:echo_hook", "result:echo_hook"]
@@ -331,7 +331,7 @@ end
             error("intentional error")
         end
 
-        agent  = Agent(name="Bot", instructions="test", tools=[broken_tool_tool])
+        agent = Agent(name="Bot", instructions="test", tools=[broken_tool_tool])
         result = run!(agent, "run broken"; verbose=false)
 
         @test result == "Sorry, the tool failed"
@@ -353,9 +353,10 @@ end
             "done"
         end
 
-        hooks = AgentHooks(should_interrupt = (name, args) -> name == "dangerous_op")
-        agent = Agent(name="Bot", instructions="test",
-                      tools=[dangerous_op_tool], hooks=hooks)
+        hooks = AgentHooks(should_interrupt=(name, args) -> name == "dangerous_op")
+        agent = Agent(
+            name="Bot", instructions="test", tools=[dangerous_op_tool], hooks=hooks
+        )
 
         @test_throws HumanInterrupt run!(agent, "do it"; verbose=false)
     end
@@ -381,11 +382,10 @@ end
             "result:$(x)"
         end
 
-        hooks = AgentHooks(should_interrupt = (name, args) -> name == "guarded_op")
-        agent = Agent(name="Bot", instructions="test",
-                      tools=[guarded_op_tool], hooks=hooks)
+        hooks = AgentHooks(should_interrupt=(name, args) -> name == "guarded_op")
+        agent = Agent(name="Bot", instructions="test", tools=[guarded_op_tool], hooks=hooks)
 
-        ch   = Channel{String}(1)
+        ch = Channel{String}(1)
         put!(ch, "approve")   # pre-load approval
 
         result = run!(agent, "do it"; verbose=false, approval_channel=ch)
@@ -402,9 +402,9 @@ end
     end
 
     apply(patch) do
-        agent   = Agent(name="Bot", instructions="test")
+        agent = Agent(name="Bot", instructions="test")
         session = Session(app_name="App", user_id="u")
-        store   = InMemorySessionStore()
+        store = InMemorySessionStore()
 
         run!(agent, "persist me"; session, store, verbose=false)
 
@@ -430,7 +430,7 @@ end
     end
 
     apply([aitools_patch, extract_patch]) do
-        agent  = Agent(name="Bot", instructions="test", output_type=ParseRetryReport)
+        agent = Agent(name="Bot", instructions="test", output_type=ParseRetryReport)
         result = run!(agent, "go"; verbose=false)
         @test result isa ParseRetryReport
         @test result.score == 10
@@ -450,13 +450,19 @@ end
             PT.DataMessage(; content=nothing, tokens=(5, 5), elapsed=0.1)
         else
             # Second attempt: return correct type
-            PT.DataMessage(; content=ParseRetryReport("recovered", 99), tokens=(5, 5), elapsed=0.1)
+            PT.DataMessage(;
+                content=ParseRetryReport("recovered", 99), tokens=(5, 5), elapsed=0.1
+            )
         end
     end
 
     apply([aitools_patch, extract_patch]) do
-        agent  = Agent(name="Bot", instructions="test", output_type=ParseRetryReport,
-                       retry=RetryConfig(max_parse_retries=2))
+        agent = Agent(
+            name="Bot",
+            instructions="test",
+            output_type=ParseRetryReport,
+            retry=RetryConfig(max_parse_retries=2),
+        )
         result = redirect_stderr(devnull) do
             run!(agent, "go"; verbose=false)
         end
@@ -476,8 +482,12 @@ end
     end
 
     apply([aitools_patch, extract_patch]) do
-        agent = Agent(name="Bot", instructions="test", output_type=ParseRetryReport,
-                      retry=RetryConfig(max_parse_retries=1))
+        agent = Agent(
+            name="Bot",
+            instructions="test",
+            output_type=ParseRetryReport,
+            retry=RetryConfig(max_parse_retries=1),
+        )
         @test_throws ErrorException redirect_stderr(devnull) do
             run!(agent, "go"; verbose=false)
         end
@@ -494,8 +504,12 @@ end
     end
 
     apply([aitools_patch, extract_patch]) do
-        agent = Agent(name="Bot", instructions="test", output_type=ParseRetryReport,
-                      retry=RetryConfig(max_parse_retries=0))
+        agent = Agent(
+            name="Bot",
+            instructions="test",
+            output_type=ParseRetryReport,
+            retry=RetryConfig(max_parse_retries=0),
+        )
         @test_throws ErrorException redirect_stderr(devnull) do
             run!(agent, "go"; verbose=false)
         end
@@ -520,8 +534,9 @@ end
         end
 
         # max_iterations=2 means it will give up after 2 LLM calls
-        agent  = Agent(name="Bot", instructions="test",
-                       tools=[inf_tool_tool], max_iterations=2)
+        agent = Agent(
+            name="Bot", instructions="test", tools=[inf_tool_tool], max_iterations=2
+        )
         result = redirect_stderr(devnull) do
             run!(agent, "loop"; verbose=false)
         end

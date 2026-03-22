@@ -25,7 +25,7 @@
 #   close!(client)
 ###############################################################################
 
-import JSON3
+using JSON3: JSON3
 
 # ── MCPServer ─────────────────────────────────────────────────────────────────
 
@@ -76,23 +76,23 @@ server = MCPServer(
 ```
 """
 struct MCPServer
-    command     ::Union{String, Nothing}
-    args        ::Vector{String}
-    env         ::Dict{String, String}
-    url         ::Union{String, Nothing}
-    headers     ::Dict{String, String}
-    timeout     ::Float64
-    cache_tools ::Bool
+    command::Union{String,Nothing}
+    args::Vector{String}
+    env::Dict{String,String}
+    url::Union{String,Nothing}
+    headers::Dict{String,String}
+    timeout::Float64
+    cache_tools::Bool
 end
 
 function MCPServer(;
-    command     ::Union{String, Nothing}  = nothing,
-    args        ::Vector{String}          = String[],
-    env         ::Dict{String, String}    = Dict{String,String}(),
-    url         ::Union{String, Nothing}  = nothing,
-    headers     ::Dict{String, String}    = Dict{String,String}(),
-    timeout     ::Float64                 = 60.0,
-    cache_tools ::Bool                    = true,
+    command::Union{String,Nothing}=nothing,
+    args::Vector{String}=String[],
+    env::Dict{String,String}=Dict{String,String}(),
+    url::Union{String,Nothing}=nothing,
+    headers::Dict{String,String}=Dict{String,String}(),
+    timeout::Float64=60.0,
+    cache_tools::Bool=true,
 )
     isnothing(command) == isnothing(url) &&
         error("MCPServer: provide exactly one of `command` (stdio) or `url` (HTTP)")
@@ -111,17 +111,18 @@ Not constructed directly by users — attach `MCPServer` objects to an `Agent` a
 the framework manages client lifetime.
 """
 mutable struct MCPClient
-    server      ::MCPServer
-    proc        ::Union{Base.Process, Nothing}
-    proc_stdin  ::Union{IO, Nothing}
-    proc_stdout ::Union{IO, Nothing}
-    _req_id     ::Int
-    _tools      ::Union{Vector{NimbleTool}, Nothing}
-    _lock       ::ReentrantLock
+    server::MCPServer
+    proc::Union{Base.Process,Nothing}
+    proc_stdin::Union{IO,Nothing}
+    proc_stdout::Union{IO,Nothing}
+    _req_id::Int
+    _tools::Union{Vector{NimbleTool},Nothing}
+    _lock::ReentrantLock
 end
 
-MCPClient(server::MCPServer) =
+function MCPClient(server::MCPServer)
     MCPClient(server, nothing, nothing, nothing, 0, nothing, ReentrantLock())
+end
 
 _connected(c::MCPClient) = !isnothing(c.proc) && process_running(c.proc)
 
@@ -134,21 +135,21 @@ A live connection to one MCP server via HTTP POST. Created automatically when
 an `MCPServer` is constructed with a `url` field.
 """
 mutable struct MCPHTTPClient
-    server      ::MCPServer
-    _req_id     ::Int
-    _tools      ::Union{Vector{NimbleTool}, Nothing}
-    _lock       ::ReentrantLock
+    server::MCPServer
+    _req_id::Int
+    _tools::Union{Vector{NimbleTool},Nothing}
+    _lock::ReentrantLock
 end
 
-MCPHTTPClient(server::MCPServer) =
-    MCPHTTPClient(server, 0, nothing, ReentrantLock())
+MCPHTTPClient(server::MCPServer) = MCPHTTPClient(server, 0, nothing, ReentrantLock())
 
 # Union for internal dispatch
-const AnyMCPClient = Union{MCPClient, MCPHTTPClient}
+const AnyMCPClient = Union{MCPClient,MCPHTTPClient}
 
 # Factory — pick the right client type based on transport
-_make_client(server::MCPServer) =
+function _make_client(server::MCPServer)
     _is_http(server) ? MCPHTTPClient(server) : MCPClient(server)
+end
 
 # ── JSON-RPC helpers ──────────────────────────────────────────────────────────
 
@@ -162,7 +163,7 @@ end
 # Note: bytesavailable() always returns 0 for Julia Pipe streams, so we cannot
 # poll. Instead we read lines in a background task and use timedwait.
 function _rpc(client::MCPClient, method::String, params=nothing)::Dict{String,Any}
-    id  = _next_id!(client)
+    id = _next_id!(client)
     req = Dict{String,Any}("jsonrpc" => "2.0", "id" => id, "method" => method)
     isnothing(params) || (req["params"] = params)
 
@@ -171,12 +172,17 @@ function _rpc(client::MCPClient, method::String, params=nothing)::Dict{String,An
 
     # Read lines in a background task. We loop because the server may send
     # notifications (no "id") before our response.
-    result_ref = Ref{Union{Dict{String,Any}, Nothing}}(nothing)
-    error_ref  = Ref{Union{String, Nothing}}(nothing)
+    result_ref = Ref{Union{Dict{String,Any},Nothing}}(nothing)
+    error_ref = Ref{Union{String,Nothing}}(nothing)
 
     task = @async begin
         while true
-            raw = try readline(client.proc_stdout; keep=false) catch; "" end
+            raw = try
+                readline(client.proc_stdout; keep=false)
+            catch
+                ;
+                ""
+            end
             isempty(raw) && break
             resp = try
                 Dict{String,Any}(JSON3.read(raw, Dict{String,Any}))
@@ -184,7 +190,7 @@ function _rpc(client::MCPClient, method::String, params=nothing)::Dict{String,An
                 continue   # skip malformed / non-JSON lines
             end
             haskey(resp, "id") || continue   # skip notifications
-            resp["id"] == id   || continue   # skip responses for other requests
+            resp["id"] == id || continue   # skip responses for other requests
             if haskey(resp, "error")
                 err = resp["error"]
                 error_ref[] = "MCP error $(get(err, "code", "?")): $(get(err, "message", "unknown"))"
@@ -211,17 +217,17 @@ function _next_id!(client::MCPHTTPClient)::Int
 end
 
 function _rpc(client::MCPHTTPClient, method::String, params=nothing)::Dict{String,Any}
-    id  = _next_id!(client)
+    id = _next_id!(client)
     req = Dict{String,Any}("jsonrpc" => "2.0", "id" => id, "method" => method)
     isnothing(params) || (req["params"] = params)
 
     # Accept both plain JSON and SSE (Streamable HTTP transport, MCP 2025-03-26)
     base_headers = [
         "Content-Type" => "application/json",
-        "Accept"       => "application/json, text/event-stream",
+        "Accept" => "application/json, text/event-stream",
     ]
     auth_headers = [k => v for (k, v) in client.server.headers]
-    all_headers  = vcat(base_headers, auth_headers)
+    all_headers = vcat(base_headers, auth_headers)
 
     resp = try
         HTTP.post(client.server.url, all_headers, JSON3.write(req))
@@ -284,23 +290,28 @@ Perform the JSON-RPC initialize handshake with the remote HTTP MCP server.
 Returns the client for chaining.
 """
 function connect!(client::MCPHTTPClient)::MCPHTTPClient
-    _rpc(client, "initialize", Dict{String,Any}(
-        "protocolVersion" => "2024-11-05",
-        "capabilities"    => Dict{String,Any}(),
-        "clientInfo"      => Dict{String,Any}(
-            "name"    => "NimbleAgents.jl",
-            "version" => "0.1",
+    _rpc(
+        client,
+        "initialize",
+        Dict{String,Any}(
+            "protocolVersion" => "2024-11-05",
+            "capabilities" => Dict{String,Any}(),
+            "clientInfo" =>
+                Dict{String,Any}("name" => "NimbleAgents.jl", "version" => "0.1"),
         ),
-    ))
+    )
 
     # Send initialized notification (best-effort — some servers don't require it)
     notif = Dict{String,Any}(
         "jsonrpc" => "2.0",
-        "method"  => "notifications/initialized",
-        "params"  => Dict{String,Any}(),
+        "method" => "notifications/initialized",
+        "params" => Dict{String,Any}(),
     )
     notif_headers = vcat(
-        ["Content-Type" => "application/json", "Accept" => "application/json, text/event-stream"],
+        [
+            "Content-Type" => "application/json",
+            "Accept" => "application/json, text/event-stream",
+        ],
         [k => v for (k, v) in client.server.headers],
     )
     try
@@ -324,29 +335,31 @@ function list_tools(client::MCPHTTPClient)::Vector{NimbleTool}
             return client._tools
         end
 
-        resp      = _rpc(client, "tools/list", Dict{String,Any}())
+        resp = _rpc(client, "tools/list", Dict{String,Any}())
         tools_raw = get(get(resp, "result", Dict()), "tools", [])
 
         tools = NimbleTool[]
         for t in tools_raw
-            name        = String(t["name"])
+            name = String(t["name"])
             description = get(t, "description", nothing)
-            schema      = Dict{String,Any}(get(t, "inputSchema",
-                              Dict("type" => "object", "properties" => Dict())))
+            schema = Dict{String,Any}(
+                get(t, "inputSchema", Dict("type" => "object", "properties" => Dict()))
+            )
 
-            tool_name   = name
+            tool_name = name
             tool_client = client
-            callable = (args::Dict{Symbol,<:Any}) -> begin
-                str_args = Dict{String,Any}(string(k) => v for (k,v) in args)
-                _call_mcp_tool(tool_client, tool_name, str_args)
-            end
+            callable =
+                (args::Dict{Symbol,<:Any}) -> begin
+                    str_args = Dict{String,Any}(string(k) => v for (k, v) in args)
+                    _call_mcp_tool(tool_client, tool_name, str_args)
+                end
 
-            push!(tools, NimbleTool(;
-                name        = name,
-                parameters  = schema,
-                description = description,
-                callable    = callable,
-            ))
+            push!(
+                tools,
+                NimbleTool(;
+                    name=name, parameters=schema, description=description, callable=callable
+                ),
+            )
         end
 
         client._tools = tools
@@ -356,15 +369,15 @@ end
 
 # ── _call_mcp_tool (HTTP) ─────────────────────────────────────────────────────
 
-function _call_mcp_tool(client::MCPHTTPClient, name::String,
-                        arguments::Dict{String,Any})::String
+function _call_mcp_tool(
+    client::MCPHTTPClient, name::String, arguments::Dict{String,Any}
+)::String
     lock(client._lock) do
-        resp = _rpc(client, "tools/call", Dict{String,Any}(
-            "name"      => name,
-            "arguments" => arguments,
-        ))
+        resp = _rpc(
+            client, "tools/call", Dict{String,Any}("name" => name, "arguments" => arguments)
+        )
 
-        result  = get(resp, "result", Dict())
+        result = get(resp, "result", Dict())
         content = get(result, "content", [])
 
         parts = String[]
@@ -408,20 +421,25 @@ function connect!(client::MCPClient)::MCPClient
     server = client.server
 
     # Build the command with optional extra env
-    cmd = Cmd(Cmd([server.command, server.args...]);
-              env = isempty(server.env) ? nothing :
-                    merge(Dict(k => v for (k,v) in ENV), server.env))
+    cmd = Cmd(
+        Cmd([server.command, server.args...]);
+        env=if isempty(server.env)
+            nothing
+        else
+            merge(Dict(k => v for (k, v) in ENV), server.env)
+        end,
+    )
 
     inp = Pipe()
     out = Pipe()
 
-    proc = run(pipeline(cmd, stdin=inp, stdout=out, stderr=devnull); wait=false)
+    proc = run(pipeline(cmd; stdin=inp, stdout=out, stderr=devnull); wait=false)
 
     close(inp.out)   # close read end of stdin pipe (we write to inp.in)
     close(out.in)    # close write end of stdout pipe (we read from out.out)
 
-    client.proc        = proc
-    client.proc_stdin  = inp.in
+    client.proc = proc
+    client.proc_stdin = inp.in
     client.proc_stdout = out.out
 
     # Give the server a moment to start its event loop before we write.
@@ -429,20 +447,22 @@ function connect!(client::MCPClient)::MCPClient
     sleep(0.5)
 
     # MCP initialize handshake
-    _rpc(client, "initialize", Dict{String,Any}(
-        "protocolVersion" => "2024-11-05",
-        "capabilities"    => Dict{String,Any}(),
-        "clientInfo"      => Dict{String,Any}(
-            "name"    => "NimbleAgents.jl",
-            "version" => "0.1",
+    _rpc(
+        client,
+        "initialize",
+        Dict{String,Any}(
+            "protocolVersion" => "2024-11-05",
+            "capabilities" => Dict{String,Any}(),
+            "clientInfo" =>
+                Dict{String,Any}("name" => "NimbleAgents.jl", "version" => "0.1"),
         ),
-    ))
+    )
 
     # Notify server that client is ready
     notif = Dict{String,Any}(
         "jsonrpc" => "2.0",
-        "method"  => "notifications/initialized",
-        "params"  => Dict{String,Any}(),
+        "method" => "notifications/initialized",
+        "params" => Dict{String,Any}(),
     )
     write(client.proc_stdin, JSON3.write(notif) * "\n")
     flush(client.proc_stdin)
@@ -469,30 +489,32 @@ function list_tools(client::MCPClient)::Vector{NimbleTool}
             return client._tools
         end
 
-        resp  = _rpc(client, "tools/list", Dict{String,Any}())
+        resp = _rpc(client, "tools/list", Dict{String,Any}())
         tools_raw = get(get(resp, "result", Dict()), "tools", [])
 
         tools = NimbleTool[]
         for t in tools_raw
-            name        = String(t["name"])
+            name = String(t["name"])
             description = get(t, "description", nothing)
-            schema      = Dict{String,Any}(get(t, "inputSchema",
-                              Dict("type" => "object", "properties" => Dict())))
+            schema = Dict{String,Any}(
+                get(t, "inputSchema", Dict("type" => "object", "properties" => Dict()))
+            )
 
             # Close over name and client so the callable captures the right values
-            tool_name   = name
+            tool_name = name
             tool_client = client
-            callable = (args::Dict{Symbol,<:Any}) -> begin
-                str_args = Dict{String,Any}(string(k) => v for (k,v) in args)
-                _call_mcp_tool(tool_client, tool_name, str_args)
-            end
+            callable =
+                (args::Dict{Symbol,<:Any}) -> begin
+                    str_args = Dict{String,Any}(string(k) => v for (k, v) in args)
+                    _call_mcp_tool(tool_client, tool_name, str_args)
+                end
 
-            push!(tools, NimbleTool(;
-                name        = name,
-                parameters  = schema,
-                description = description,
-                callable    = callable,
-            ))
+            push!(
+                tools,
+                NimbleTool(;
+                    name=name, parameters=schema, description=description, callable=callable
+                ),
+            )
         end
 
         client._tools = tools
@@ -502,13 +524,13 @@ end
 
 # ── _call_mcp_tool ────────────────────────────────────────────────────────────
 
-function _call_mcp_tool(client::MCPClient, name::String,
-                        arguments::Dict{String,Any})::String
+function _call_mcp_tool(
+    client::MCPClient, name::String, arguments::Dict{String,Any}
+)::String
     lock(client._lock) do
-        resp = _rpc(client, "tools/call", Dict{String,Any}(
-            "name"      => name,
-            "arguments" => arguments,
-        ))
+        resp = _rpc(
+            client, "tools/call", Dict{String,Any}("name" => name, "arguments" => arguments)
+        )
 
         result = get(resp, "result", Dict())
         content = get(result, "content", [])
@@ -538,15 +560,25 @@ end
 Terminate the MCP server subprocess and clean up I/O handles.
 """
 function close!(client::MCPClient)
-    isnothing(client.proc_stdin)  || (try close(client.proc_stdin)  catch end)
-    isnothing(client.proc_stdout) || (try close(client.proc_stdout) catch end)
+    isnothing(client.proc_stdin) || (
+        try
+            close(client.proc_stdin)
+        catch
+        end
+    )
+    isnothing(client.proc_stdout) || (
+        try
+            close(client.proc_stdout)
+        catch
+        end
+    )
     if !isnothing(client.proc) && process_running(client.proc)
         kill(client.proc)
     end
-    client.proc        = nothing
-    client.proc_stdin  = nothing
+    client.proc = nothing
+    client.proc_stdin = nothing
     client.proc_stdout = nothing
-    client._tools      = nothing
+    client._tools = nothing
     return nothing
 end
 
@@ -554,19 +586,24 @@ end
 # Internal helper used by run!: connect all MCP servers, collect their tools,
 # return (tools_vector, clients_vector) so run! can close them in a finally block.
 
-function _connect_mcp_servers(servers::Vector{MCPServer})::Tuple{Vector{NimbleTool}, Vector{AnyMCPClient}}
+function _connect_mcp_servers(
+    servers::Vector{MCPServer}
+)::Tuple{Vector{NimbleTool},Vector{AnyMCPClient}}
     all_tools = NimbleTool[]
-    clients   = AnyMCPClient[]
+    clients = AnyMCPClient[]
 
     for server in servers
         client = _make_client(server)
-        label  = _is_http(server) ? server.url : "$(server.command) $(join(server.args, " "))"
+        label =
+            _is_http(server) ? server.url : "$(server.command) $(join(server.args, " "))"
         try
             connect!(client)
             tools = list_tools(client)
             append!(all_tools, tools)
             push!(clients, client)
-            println("[MCP] connected to $(label) — $(length(tools)) tool(s): $(join([t.name for t in tools], ", "))")
+            println(
+                "[MCP] connected to $(label) — $(length(tools)) tool(s): $(join([t.name for t in tools], ", "))",
+            )
         catch e
             println(stderr, "[MCP] failed to connect to $(label): $(sprint(showerror, e))")
             close!(client)
@@ -578,6 +615,9 @@ end
 
 function _close_mcp_clients(clients::Vector{AnyMCPClient})
     for client in clients
-        try close!(client) catch end
+        try
+            close!(client)
+        catch
+        end
     end
 end

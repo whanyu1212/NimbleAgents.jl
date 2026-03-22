@@ -27,7 +27,7 @@ import Term: Panel, tprintln
 # returned immediately — the LLM never gets to rephrase or summarise it.
 
 const FAQ = Dict(
-    "refund"   => "Refunds are processed within 5–7 business days.",
+    "refund" => "Refunds are processed within 5–7 business days.",
     "shipping" => "Standard shipping takes 3–5 business days. Express is 1–2.",
     "password" => "Click 'Forgot password' on the login page to reset.",
 )
@@ -42,21 +42,25 @@ end
     "[SIMULATED] Web results for: $(query)"
 end
 
-tprintln(Panel(
-    "Example 1 — FAQ lookup\n" *
-    "lookup_faq is return_direct=true.\n" *
-    "The LLM calls it, its answer is returned immediately.",
-    title = "return_direct", style = "cyan", padding = (1, 2, 1, 2),
-))
+tprintln(
+    Panel(
+        "Example 1 — FAQ lookup\n" *
+        "lookup_faq is return_direct=true.\n" *
+        "The LLM calls it, its answer is returned immediately.";
+        title="return_direct",
+        style="cyan",
+        padding=(1, 2, 1, 2),
+    ),
+)
 
-faq_agent = Agent(
-    name         = "SupportBot",
-    instructions = """
-    You are a customer support assistant. Use lookup_faq for specific support
-    topics (refund, shipping, password). Use search_web for anything else.
-    """,
-    tools = [lookup_faq_tool, search_web_tool],
-    model = "gpt-5.4-nano-2026-03-17",
+faq_agent = Agent(;
+    name="SupportBot",
+    instructions="""
+  You are a customer support assistant. Use lookup_faq for specific support
+  topics (refund, shipping, password). Use search_web for anything else.
+  """,
+    tools=[lookup_faq_tool, search_web_tool],
+    model="gpt-5.4-nano-2026-03-17",
 )
 
 result1 = run!(faq_agent, "How long do refunds take?"; verbose=false)
@@ -70,11 +74,15 @@ println("Result: ", result2, "\n")
 # Same tool, return_direct toggled. Without it the LLM wraps the answer in a
 # sentence. With it, the raw tool output is returned as-is.
 
-tprintln(Panel(
-    "Example 2 — normal vs return_direct side by side\n" *
-    "Same tool content, different agent behaviour.",
-    title = "return_direct", style = "yellow", padding = (1, 2, 1, 2),
-))
+tprintln(
+    Panel(
+        "Example 2 — normal vs return_direct side by side\n" *
+        "Same tool content, different agent behaviour.";
+        title="return_direct",
+        style="yellow",
+        padding=(1, 2, 1, 2),
+    ),
+)
 
 @tool function get_price_normal(product::String)
     "Get the current price of a product."
@@ -86,18 +94,18 @@ end
     "Price of $(product): \$49.99"
 end
 
-agent_normal = Agent(
-    name         = "PriceBot-Normal",
-    instructions = "You answer product pricing questions.",
-    tools        = [get_price_normal_tool],
-    model        = "gpt-5.4-nano-2026-03-17",
+agent_normal = Agent(;
+    name="PriceBot-Normal",
+    instructions="You answer product pricing questions.",
+    tools=[get_price_normal_tool],
+    model="gpt-5.4-nano-2026-03-17",
 )
 
-agent_direct = Agent(
-    name         = "PriceBot-Direct",
-    instructions = "You answer product pricing questions.",
-    tools        = [get_price_direct_tool],
-    model        = "gpt-5.4-nano-2026-03-17",
+agent_direct = Agent(;
+    name="PriceBot-Direct",
+    instructions="You answer product pricing questions.",
+    tools=[get_price_direct_tool],
+    model="gpt-5.4-nano-2026-03-17",
 )
 
 r_normal = run!(agent_normal, "How much does the Widget cost?"; verbose=false)
@@ -110,17 +118,22 @@ println("Direct (raw tool output):    ", r_direct, "\n")
 #
 # return_direct still writes to session history so subsequent turns have context.
 
-tprintln(Panel(
-    "Example 3 — return_direct with session\n" *
-    "Short-circuit result is still recorded in session history.",
-    title = "return_direct", style = "magenta", padding = (1, 2, 1, 2),
-))
+tprintln(
+    Panel(
+        "Example 3 — return_direct with session\n" *
+        "Short-circuit result is still recorded in session history.";
+        title="return_direct",
+        style="magenta",
+        padding=(1, 2, 1, 2),
+    ),
+)
 
-session = Session(app_name="return_direct_demo", user_id="user")
+session = Session(; app_name="return_direct_demo", user_id="user")
 
 run!(faq_agent, "What is the refund policy?"; session=session, verbose=false)
-follow_up = run!(faq_agent, "Can you summarise what you just told me?";
-                 session=session, verbose=false)
+follow_up = run!(
+    faq_agent, "Can you summarise what you just told me?"; session=session, verbose=false
+)
 
 println("Follow-up (has context from return_direct turn):")
 println(follow_up, "\n")

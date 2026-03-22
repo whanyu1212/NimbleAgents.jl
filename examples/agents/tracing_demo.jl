@@ -32,21 +32,34 @@ end
 
 @tool function to_words(n::Int)
     "Convert a small integer to its English word representation."
-    words = ["zero","one","two","three","four","five","six","seven",
-             "eight","nine","ten","eleven","twelve"]
+    words = [
+        "zero",
+        "one",
+        "two",
+        "three",
+        "four",
+        "five",
+        "six",
+        "seven",
+        "eight",
+        "nine",
+        "ten",
+        "eleven",
+        "twelve",
+    ]
     1 <= n <= length(words) ? words[n] : "$(n)"
 end
 
 # ── Set up agent and session ──────────────────────────────────────────────────
 
-agent = Agent(
-    name         = "MathBot",
-    instructions = "You are a helpful maths assistant. Use the available tools to compute answers.",
-    tools        = [add_tool, multiply_tool, to_words_tool],
-    model        = "gpt-5.4-nano-2026-03-17",
+agent = Agent(;
+    name="MathBot",
+    instructions="You are a helpful maths assistant. Use the available tools to compute answers.",
+    tools=[add_tool, multiply_tool, to_words_tool],
+    model="gpt-5.4-nano-2026-03-17",
 )
 
-session = Session(app_name="TracingDemo", user_id="alice")
+session = Session(; app_name="TracingDemo", user_id="alice")
 
 # ── Run a few turns ───────────────────────────────────────────────────────────
 
@@ -66,8 +79,15 @@ println("\n=== Programmatic inspection ===\n")
 
 println("Number of turns   : ", length(trace.turns))
 println("Agents involved   : ", join(trace.agents, ", "))
-println("Total tokens used : ", trace.total_tokens,
-        " (", trace.total_input_tokens, " in / ", trace.total_output_tokens, " out)")
+println(
+    "Total tokens used : ",
+    trace.total_tokens,
+    " (",
+    trace.total_input_tokens,
+    " in / ",
+    trace.total_output_tokens,
+    " out)",
+)
 println("Total cost        : \$", round(trace.total_cost; digits=4))
 println("Total LLM calls   : ", trace.total_llm_calls)
 println("Total tool calls  : ", trace.total_tool_calls)
@@ -77,12 +97,14 @@ println("\nPer-turn breakdown:")
 for (i, turn) in enumerate(trace.turns)
     println("  Turn $(i): \"$(turn.input)\"")
     println("    → $(turn.output)")
-    println("    tokens: $(turn.input_tokens + turn.output_tokens) | ",
-            "cost: \$$(round(turn.cost; digits=4)) | ",
-            "elapsed: $(round(turn.elapsed; digits=2))s")
+    println(
+        "    tokens: $(turn.input_tokens + turn.output_tokens) | ",
+        "cost: \$$(round(turn.cost; digits=4)) | ",
+        "elapsed: $(round(turn.elapsed; digits=2))s",
+    )
     for te in turn.tool_calls
         status = isnothing(te.error) ? "✓" : "✗"
-        args_str = join(["$(k)=$(v)" for (k,v) in te.args], ", ")
+        args_str = join(["$(k)=$(v)" for (k, v) in te.args], ", ")
         println("    $(status) $(te.name)($(args_str)) → $(te.result)")
     end
 end

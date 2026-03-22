@@ -4,20 +4,19 @@
 
 # ── read_file_tool ─────────────────────────────────────────────────────────────
 
-const read_file_tool = NimbleTool(
-    name        = "read_file",
-    description = "Read the contents of a file and return them as a string.",
-    parameters  = Dict{String,Any}(
-        "type"       => "object",
+const read_file_tool = NimbleTool(;
+    name="read_file",
+    description="Read the contents of a file and return them as a string.",
+    parameters=Dict{String,Any}(
+        "type" => "object",
         "properties" => Dict{String,Any}(
             "path" => Dict{String,Any}(
-                "type"        => "string",
-                "description" => "Path to the file to read.",
+                "type" => "string", "description" => "Path to the file to read."
             ),
         ),
         "required" => ["path"],
     ),
-    callable = (path::String) -> begin
+    callable=(path::String) -> begin
         isfile(path) || return "Error: file not found: $(path)"
         read(path, String)
     end,
@@ -25,24 +24,22 @@ const read_file_tool = NimbleTool(
 
 # ── write_file_tool ────────────────────────────────────────────────────────────
 
-const write_file_tool = NimbleTool(
-    name        = "write_file",
-    description = "Write content to a file, creating it if it does not exist and overwriting if it does.",
-    parameters  = Dict{String,Any}(
-        "type"       => "object",
+const write_file_tool = NimbleTool(;
+    name="write_file",
+    description="Write content to a file, creating it if it does not exist and overwriting if it does.",
+    parameters=Dict{String,Any}(
+        "type" => "object",
         "properties" => Dict{String,Any}(
-            "path"    => Dict{String,Any}(
-                "type"        => "string",
-                "description" => "Path to the file to write.",
+            "path" => Dict{String,Any}(
+                "type" => "string", "description" => "Path to the file to write."
             ),
             "content" => Dict{String,Any}(
-                "type"        => "string",
-                "description" => "Content to write to the file.",
+                "type" => "string", "description" => "Content to write to the file."
             ),
         ),
         "required" => ["path", "content"],
     ),
-    callable = (path::String, content::String) -> begin
+    callable=(path::String, content::String) -> begin
         dir = dirname(path)
         isempty(dir) || mkpath(dir)
         write(path, content)
@@ -52,35 +49,34 @@ const write_file_tool = NimbleTool(
 
 # ── edit_file_tool ─────────────────────────────────────────────────────────────
 
-const edit_file_tool = NimbleTool(
-    name        = "edit_file",
-    description = """Replace an exact string in a file with new content.
+const edit_file_tool = NimbleTool(;
+    name="edit_file",
+    description="""Replace an exact string in a file with new content.
 The `old_str` must match exactly (including whitespace and indentation).
 Returns an error if the string is not found or matches more than once.""",
-    parameters  = Dict{String,Any}(
-        "type"       => "object",
+    parameters=Dict{String,Any}(
+        "type" => "object",
         "properties" => Dict{String,Any}(
-            "path"    => Dict{String,Any}(
-                "type"        => "string",
-                "description" => "Path to the file to edit.",
+            "path" => Dict{String,Any}(
+                "type" => "string", "description" => "Path to the file to edit."
             ),
             "old_str" => Dict{String,Any}(
-                "type"        => "string",
+                "type" => "string",
                 "description" => "Exact string to replace. Must appear exactly once in the file.",
             ),
             "new_str" => Dict{String,Any}(
-                "type"        => "string",
-                "description" => "Replacement string.",
+                "type" => "string", "description" => "Replacement string."
             ),
         ),
         "required" => ["path", "old_str", "new_str"],
     ),
-    callable = (path::String, old_str::String, new_str::String) -> begin
+    callable=(path::String, old_str::String, new_str::String) -> begin
         isfile(path) || return "Error: file not found: $(path)"
         content = read(path, String)
         n = count(old_str, content)
         n == 0 && return "Error: string not found in $(path)."
-        n >  1 && return "Error: string found $(n) times in $(path) — must match exactly once."
+        n > 1 &&
+            return "Error: string found $(n) times in $(path) — must match exactly once."
         write(path, replace(content, old_str => new_str; count=1))
         "Edit applied to $(path)."
     end,
@@ -88,20 +84,20 @@ Returns an error if the string is not found or matches more than once.""",
 
 # ── list_dir_tool ──────────────────────────────────────────────────────────────
 
-const list_dir_tool = NimbleTool(
-    name        = "list_dir",
-    description = "List the contents of a directory, showing names, types, and sizes.",
-    parameters  = Dict{String,Any}(
-        "type"       => "object",
+const list_dir_tool = NimbleTool(;
+    name="list_dir",
+    description="List the contents of a directory, showing names, types, and sizes.",
+    parameters=Dict{String,Any}(
+        "type" => "object",
         "properties" => Dict{String,Any}(
             "path" => Dict{String,Any}(
-                "type"        => "string",
+                "type" => "string",
                 "description" => "Path to the directory to list. Defaults to current directory.",
             ),
         ),
         "required" => ["path"],
     ),
-    callable = (path::String) -> begin
+    callable=(path::String) -> begin
         isdir(path) || return "Error: directory not found: $(path)"
         entries = readdir(path; join=true)
         isempty(entries) && return "(empty directory)"
@@ -110,9 +106,13 @@ const list_dir_tool = NimbleTool(
                 "  $(basename(entry))/"
             else
                 sz = filesize(entry)
-                sz_str = sz < 1024 ? "$(sz) B" :
-                         sz < 1024^2 ? "$(round(sz/1024, digits=1)) KB" :
-                         "$(round(sz/1024^2, digits=1)) MB"
+                sz_str = if sz < 1024
+                    "$(sz) B"
+                elseif sz < 1024^2
+                    "$(round(sz/1024, digits=1)) KB"
+                else
+                    "$(round(sz/1024^2, digits=1)) MB"
+                end
                 "  $(basename(entry))  ($(sz_str))"
             end
         end
@@ -122,25 +122,25 @@ const list_dir_tool = NimbleTool(
 
 # ── glob_tool ──────────────────────────────────────────────────────────────────
 
-const glob_tool = NimbleTool(
-    name        = "glob",
-    description = "Find files matching a glob pattern. Use ** for recursive matching.",
-    parameters  = Dict{String,Any}(
-        "type"       => "object",
+const glob_tool = NimbleTool(;
+    name="glob",
+    description="Find files matching a glob pattern. Use ** for recursive matching.",
+    parameters=Dict{String,Any}(
+        "type" => "object",
         "properties" => Dict{String,Any}(
             "pattern" => Dict{String,Any}(
-                "type"        => "string",
+                "type" => "string",
                 "description" => "Glob pattern, e.g. 'src/**/*.jl' or '*.md'.",
             ),
             "base_dir" => Dict{String,Any}(
-                "type"        => "string",
+                "type" => "string",
                 "description" => "Base directory to search from. Defaults to current directory.",
             ),
         ),
         "required" => ["pattern"],
     ),
-    callable = (args::Dict{Symbol,<:Any}) -> begin
-        pattern  = get(args, :pattern,  "")
+    callable=(args::Dict{Symbol,<:Any}) -> begin
+        pattern = get(args, :pattern, "")
         base_dir = get(args, :base_dir, ".")
         isdir(base_dir) || return "Error: directory not found: $(base_dir)"
         results = String[]
@@ -154,10 +154,10 @@ const glob_tool = NimbleTool(
 function _glob_walk(dir::String, pattern::String, results::Vector{String})
     # Split pattern into first segment and rest
     parts = split(pattern, r"[/\\]"; limit=2)
-    seg   = String(parts[1])
-    rest  = length(parts) > 1 ? String(parts[2]) : ""
+    seg = String(parts[1])
+    rest = length(parts) > 1 ? String(parts[2]) : ""
 
-    isdir(dir) || return
+    isdir(dir) || return nothing
 
     if seg == "**"
         # ** matches zero or more path segments.
@@ -170,7 +170,7 @@ function _glob_walk(dir::String, pattern::String, results::Vector{String})
             end
             isdir(entry) && _glob_walk(entry, pattern, results)
         end
-        return
+        return nothing
     end
 
     for entry in readdir(dir; join=true)
@@ -187,7 +187,7 @@ end
 
 # Match a single glob segment (* wildcard only) against a filename
 function _glob_match(pattern::String, name::String)::Bool
-    pattern == "*"  && return true
+    pattern == "*" && return true
     pattern == name && return true
     # Convert glob pattern to regex: escape special chars, replace * with .*
     escaped = replace(pattern, r"([.+^${}()|\\])" => s"\\\1")
@@ -197,20 +197,19 @@ end
 
 # ── delete_file_tool ───────────────────────────────────────────────────────────
 
-const delete_file_tool = NimbleTool(
-    name        = "delete_file",
-    description = "Permanently delete a file. This action cannot be undone.",
-    parameters  = Dict{String,Any}(
-        "type"       => "object",
+const delete_file_tool = NimbleTool(;
+    name="delete_file",
+    description="Permanently delete a file. This action cannot be undone.",
+    parameters=Dict{String,Any}(
+        "type" => "object",
         "properties" => Dict{String,Any}(
             "path" => Dict{String,Any}(
-                "type"        => "string",
-                "description" => "Path to the file to delete.",
+                "type" => "string", "description" => "Path to the file to delete."
             ),
         ),
         "required" => ["path"],
     ),
-    callable = (path::String) -> begin
+    callable=(path::String) -> begin
         isfile(path) || return "Error: file not found: $(path)"
         rm(path)
         "Deleted: $(path)"

@@ -5,42 +5,42 @@
 # should_interrupt or approval_channel in any production context.
 ###############################################################################
 
-const bash_tool = NimbleTool(
-    name        = "bash",
-    description = """Run a shell command and return its output.
+const bash_tool = NimbleTool(;
+    name="bash",
+    description="""Run a shell command and return its output.
 Use for tasks that require shell utilities, build tools, package managers, or
 anything not covered by the other built-in tools.
 
 ⚠ Runs with the same permissions as the Julia process. Use with care.""",
-    parameters  = Dict{String,Any}(
-        "type"       => "object",
+    parameters=Dict{String,Any}(
+        "type" => "object",
         "properties" => Dict{String,Any}(
             "command" => Dict{String,Any}(
-                "type"        => "string",
-                "description" => "Shell command to execute.",
+                "type" => "string", "description" => "Shell command to execute."
             ),
             "working_dir" => Dict{String,Any}(
-                "type"        => "string",
+                "type" => "string",
                 "description" => "Working directory for the command (default: current directory).",
             ),
             "timeout" => Dict{String,Any}(
-                "type"        => "integer",
+                "type" => "integer",
                 "description" => "Timeout in seconds (default: 30).",
             ),
         ),
         "required" => ["command"],
     ),
-    callable = (args::Dict{Symbol,<:Any}) -> begin
-        command     = get(args, :command,     "")
+    callable=(args::Dict{Symbol,<:Any}) -> begin
+        command = get(args, :command, "")
         working_dir = get(args, :working_dir, ".")
-        timeout     = get(args, :timeout,     30)
-        isdir(working_dir) || return "Error: working directory not found: $(working_dir)"
+        timeout = get(args, :timeout, 30)
+        isdir(working_dir) ||
+            return "Error: working directory not found: $(working_dir)"
 
         stdout_buf = IOBuffer()
         stderr_buf = IOBuffer()
 
         cmd = Cmd(`sh -c $command`; dir=working_dir)
-        proc = run(pipeline(cmd, stdout=stdout_buf, stderr=stderr_buf); wait=false)
+        proc = run(pipeline(cmd; stdout=stdout_buf, stderr=stderr_buf); wait=false)
 
         t_start = time()
         while process_running(proc)

@@ -10,14 +10,14 @@ struct WeatherReport
     location::String
     temperature_f::Float64
     condition::String
-    humidity_pct::Union{Int, Nothing}
+    humidity_pct::Union{Int,Nothing}
 end
 
 struct MathResult
     "Result of a math calculation"
     expression::String
     result::Float64
-    explanation::Union{String, Nothing}
+    explanation::Union{String,Nothing}
 end
 
 # ── Test 1: Pure extraction (no tools) ───────────────────────────────────────
@@ -26,13 +26,15 @@ println("=" ^ 60)
 println("Test 1: Structured extraction (no tools)")
 println("=" ^ 60)
 
-weather_agent = Agent(
-    name         = "WeatherExtractor",
-    instructions = "Extract structured weather information from the user's message.",
-    output_type  = WeatherReport,
+weather_agent = Agent(;
+    name="WeatherExtractor",
+    instructions="Extract structured weather information from the user's message.",
+    output_type=WeatherReport,
 )
 
-report = run!(weather_agent, "It's currently 68°F, partly cloudy in San Francisco with 72% humidity.")
+report = run!(
+    weather_agent, "It's currently 68°F, partly cloudy in San Francisco with 72% humidity."
+)
 println("Type:          ", typeof(report))
 println("Location:      ", report.location)
 println("Temperature:   ", report.temperature_f, "°F")
@@ -55,12 +57,12 @@ end
     x * y
 end
 
-math_agent = Agent(
-    name         = "MathExtractor",
-    instructions = """You are a math assistant. Use tools to compute results.
+math_agent = Agent(;
+    name="MathExtractor",
+    instructions="""You are a math assistant. Use tools to compute results.
 After computing, return a structured MathResult with the expression and result.""",
-    tools        = [add_tool, multiply_tool],
-    output_type  = MathResult,
+    tools=[add_tool, multiply_tool],
+    output_type=MathResult,
 )
 
 result = run!(math_agent, "What is (4 + 6) * 3?")

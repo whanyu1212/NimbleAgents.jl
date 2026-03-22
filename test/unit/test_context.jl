@@ -4,9 +4,9 @@ import PromptingTools as PT
 
     # defaults match Claude Opus 4.5/4.6 specs
     cfg = ContextConfig()
-    @test cfg.context_window    == 400_000
-    @test cfg.compact_threshold ≈  0.80
-    @test cfg.keep_last         == 20
+    @test cfg.context_window == 400_000
+    @test cfg.compact_threshold ≈ 0.80
+    @test cfg.keep_last == 20
     @test isnothing(cfg.summary_model)
 
     # threshold calculation: 80% of 400k = 320k
@@ -25,9 +25,9 @@ import PromptingTools as PT
     @test agent.context.context_window == 400_000
 
     custom_agent = Agent(
-        name    = "B",
-        instructions = ".",
-        context = ContextConfig(context_window=128_000, keep_last=5),
+        name="B",
+        instructions=".",
+        context=ContextConfig(context_window=128_000, keep_last=5),
     )
     @test custom_agent.context.context_window == 128_000
     @test custom_agent.context.keep_last == 5
@@ -61,7 +61,6 @@ end
 end
 
 @testset "compact! — below threshold" begin
-
     agent = Agent(name="A", instructions=".")
     session = Session()
 
@@ -78,7 +77,7 @@ end
 
     # Even if token estimate is high, if we have fewer messages than keep_last
     # there is nothing to summarise — compact! should bail out
-    cfg   = ContextConfig(context_window=100, compact_threshold=0.01, keep_last=20)
+    cfg = ContextConfig(context_window=100, compact_threshold=0.01, keep_last=20)
     agent = Agent(name="A", instructions=".", context=cfg)
     session = Session()
 
@@ -97,11 +96,11 @@ end
     # Set summary_model to something invalid so if it tries to call the LLM it throws,
     # proving that we only test the split logic here without a live API call.
     cfg = ContextConfig(
-        context_window    = 100,    # tiny
-        compact_threshold = 0.01,   # triggers immediately (threshold = 1 token)
-        keep_last         = 3,
+        context_window=100,    # tiny
+        compact_threshold=0.01,   # triggers immediately (threshold = 1 token)
+        keep_last=3,
     )
-    agent   = Agent(name="A", instructions=".", context=cfg)
+    agent = Agent(name="A", instructions=".", context=cfg)
     session = Session()
 
     # 6 messages: first 3 are "old", last 3 should be kept
@@ -111,12 +110,12 @@ end
     # We expect compact! to attempt a summarisation LLM call and fail
     # (no API key in unit tests) — catch the error but verify the split
     # would have been 3 old + 3 kept.
-    n     = length(session.history)
+    n = length(session.history)
     n_old = n - cfg.keep_last          # 3
     @test n_old == 3
 
-    old_content  = [session.history[i].content for i in 1:n_old]
-    keep_content = [session.history[i].content for i in (n_old+1):n]
-    @test old_content  == ["msg 1", "msg 2", "msg 3"]
+    old_content = [session.history[i].content for i in 1:n_old]
+    keep_content = [session.history[i].content for i in (n_old + 1):n]
+    @test old_content == ["msg 1", "msg 2", "msg 3"]
     @test keep_content == ["msg 4", "msg 5", "msg 6"]
 end

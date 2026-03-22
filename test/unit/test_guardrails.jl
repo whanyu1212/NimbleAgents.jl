@@ -17,7 +17,7 @@ end
 @testset "Guardrail construction" begin
     g = Guardrail(name="test", check=_ -> Pass())
     @test g.name == "test"
-    @test g.on   == :input   # default
+    @test g.on == :input   # default
 
     g2 = Guardrail(name="out", check=_ -> Pass(), on=:output)
     @test g2.on == :output
@@ -60,7 +60,7 @@ end
 # ── _run_guardrails — chaining ────────────────────────────────────────────────
 
 @testset "_run_guardrails — chaining multiple guardrails" begin
-    g1 = Guardrail(name="strip",     check=v -> Modify(strip(v)))
+    g1 = Guardrail(name="strip", check=v -> Modify(strip(v)))
     g2 = Guardrail(name="uppercase", check=v -> Modify(uppercase(v)))
     result = NimbleAgents._run_guardrails([g1, g2], :input, "  hello  ", "TestAgent", false)
     @test result == "HELLO"
@@ -69,7 +69,7 @@ end
 # ── _run_guardrails — phase filtering ────────────────────────────────────────
 
 @testset "_run_guardrails — phase filtering" begin
-    input_g  = Guardrail(name="input_only",  on=:input,  check=_ -> Block("input blocked"))
+    input_g = Guardrail(name="input_only", on=:input, check=_ -> Block("input blocked"))
     output_g = Guardrail(name="output_only", on=:output, check=_ -> Block("output blocked"))
 
     # input_g should NOT fire when phase=:output
@@ -100,9 +100,7 @@ end
 
 @testset "Agent — input guardrail blocks before LLM call" begin
     block_all = Guardrail(
-        name  = "block_all",
-        on    = :input,
-        check = _ -> Block("Input not allowed."),
+        name="block_all", on=:input, check=_ -> Block("Input not allowed.")
     )
 
     @tool function dummy_tool_gr(x::Int)
@@ -111,10 +109,10 @@ end
     end
 
     agent = Agent(
-        name       = "GuardBot",
-        instructions = "You are a helpful assistant.",
-        tools      = [dummy_tool_gr_tool],
-        guardrails = [block_all],
+        name="GuardBot",
+        instructions="You are a helpful assistant.",
+        tools=[dummy_tool_gr_tool],
+        guardrails=[block_all],
     )
 
     # The LLM should never be called — result comes straight from the guardrail
@@ -128,21 +126,18 @@ end
     # We just verify that Modify doesn't crash and the agent runs normally.
     # We can't easily assert on what was sent to the LLM without mocking,
     # but we can confirm no exception is thrown.
-    strip_g = Guardrail(
-        name  = "strip_spaces",
-        on    = :input,
-        check = v -> Modify(strip(v)),
-    )
+    strip_g = Guardrail(name="strip_spaces", on=:input, check=v -> Modify(strip(v)))
 
     agent = Agent(
-        name         = "StripBot",
-        instructions = "Reply with the word DONE.",
-        guardrails   = [strip_g],
+        name="StripBot", instructions="Reply with the word DONE.", guardrails=[strip_g]
     )
 
     # Should not throw
     @test_nowarn begin
-        try run!(agent, "  hello  "; verbose=false) catch end
+        try
+            run!(agent, "  hello  "; verbose=false)
+        catch
+        end
     end
 end
 
@@ -150,24 +145,30 @@ end
 
 @testset "Agent — output guardrail blocks final response" begin
     block_output = Guardrail(
-        name  = "block_output",
-        on    = :output,
-        check = _ -> Block("Output not allowed."),
+        name="block_output", on=:output, check=_ -> Block("Output not allowed.")
     )
 
     agent = Agent(
-        name         = "OutputGuardBot",
-        instructions = "Reply with the word DONE.",
-        guardrails   = [block_output],
+        name="OutputGuardBot",
+        instructions="Reply with the word DONE.",
+        guardrails=[block_output],
     )
 
     # We can't easily run a live LLM call in unit tests, but we can test
     # _apply_output_guardrails directly
-    dummy_turn  = NimbleAgents.TurnEvent("TestAgent", "test-model", "input")
+    dummy_turn = NimbleAgents.TurnEvent("TestAgent", "test-model", "input")
     dummy_hooks = AgentHooks()
     result = NimbleAgents._apply_output_guardrails(
-        "some response", agent, dummy_turn, time(), nothing,
-        [], 0, dummy_hooks, nothing, false,
+        "some response",
+        agent,
+        dummy_turn,
+        time(),
+        nothing,
+        [],
+        0,
+        dummy_hooks,
+        nothing,
+        false,
     )
     @test result == "Output not allowed."
 end
@@ -176,22 +177,24 @@ end
 
 @testset "Agent — output Modify rewrites response" begin
     uppercase_output = Guardrail(
-        name  = "uppercase_output",
-        on    = :output,
-        check = v -> Modify(uppercase(v)),
+        name="uppercase_output", on=:output, check=v -> Modify(uppercase(v))
     )
 
-    agent = Agent(
-        name         = "UpperBot",
-        instructions = "Reply.",
-        guardrails   = [uppercase_output],
-    )
+    agent = Agent(name="UpperBot", instructions="Reply.", guardrails=[uppercase_output])
 
-    dummy_turn  = NimbleAgents.TurnEvent("TestAgent", "test-model", "input")
+    dummy_turn = NimbleAgents.TurnEvent("TestAgent", "test-model", "input")
     dummy_hooks = AgentHooks()
     result = NimbleAgents._apply_output_guardrails(
-        "hello world", agent, dummy_turn, time(), nothing,
-        [], 0, dummy_hooks, nothing, false,
+        "hello world",
+        agent,
+        dummy_turn,
+        time(),
+        nothing,
+        [],
+        0,
+        dummy_hooks,
+        nothing,
+        false,
     )
     @test result == "HELLO WORLD"
 end
@@ -199,25 +202,16 @@ end
 # ── Agent integration — non-string output skips guardrails ───────────────────
 
 @testset "Agent — non-string output skips output guardrails" begin
-    block_output = Guardrail(
-        name  = "block_output",
-        on    = :output,
-        check = _ -> Block("blocked"),
-    )
+    block_output = Guardrail(name="block_output", on=:output, check=_ -> Block("blocked"))
 
-    agent = Agent(
-        name         = "StructBot",
-        instructions = "Reply.",
-        guardrails   = [block_output],
-    )
+    agent = Agent(name="StructBot", instructions="Reply.", guardrails=[block_output])
 
-    dummy_turn  = NimbleAgents.TurnEvent("TestAgent", "test-model", "input")
+    dummy_turn = NimbleAgents.TurnEvent("TestAgent", "test-model", "input")
     dummy_hooks = AgentHooks()
 
     # Non-string result (e.g. structured output) should pass through untouched
     result = NimbleAgents._apply_output_guardrails(
-        42, agent, dummy_turn, time(), nothing,
-        [], 0, dummy_hooks, nothing, false,
+        42, agent, dummy_turn, time(), nothing, [], 0, dummy_hooks, nothing, false
     )
     @test result == 42
 end

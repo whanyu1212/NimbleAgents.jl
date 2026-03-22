@@ -20,7 +20,7 @@
 
 # Create or retrieve the persistent sandbox module for a session.
 # Key in session.state: "_julia_sandbox"
-function _get_sandbox(session_state::Union{Dict{String,Any}, Nothing})::Module
+function _get_sandbox(session_state::Union{Dict{String,Any},Nothing})::Module
     if !isnothing(session_state)
         if !haskey(session_state, "_julia_sandbox")
             session_state["_julia_sandbox"] = _new_sandbox()
@@ -47,9 +47,9 @@ end
 #   file and return the path so the agent knows where to find it.
 function _format_result(result)::String
     # Suppress implementation-detail types that are noise for the LLM
-    result isa Function  && return ""
-    result isa Module    && return ""
-    result isa DataType  && return ""
+    result isa Function && return ""
+    result isa Module && return ""
+    result isa DataType && return ""
 
     # Plot-like: anything that has a savefig method defined for it.
     # We check without importing Plots/Makie — just look for the method.
@@ -61,12 +61,14 @@ function _format_result(result)::String
             savefig_fn(result, path)
             # Register as session artifact if a session is active
             session = get(task_local_storage(), :_current_session, nothing)
-            store   = get(task_local_storage(), :_current_store,   nothing)
+            store = get(task_local_storage(), :_current_store, nothing)
             if !isnothing(session)
-                register_artifact!(session, path;
-                    name     = "plot_" * basename(path),
-                    store    = store,
-                    metadata = Dict{String,Any}("source" => "eval_julia"),
+                register_artifact!(
+                    session,
+                    path;
+                    name="plot_" * basename(path),
+                    store=store,
+                    metadata=Dict{String,Any}("source" => "eval_julia"),
                 )
             end
             return "Plot saved to: $(path)"
@@ -110,9 +112,9 @@ function _eval_in_sandbox(sandbox::Module, code::String, timeout::Real)::String
     end
 
     result_ref = Ref{Any}(nothing)
-    err_ref    = Ref{Any}(nothing)
-    out_ref    = Ref{String}("")
-    err_out_ref= Ref{String}("")
+    err_ref = Ref{Any}(nothing)
+    out_ref = Ref{String}("")
+    err_out_ref = Ref{String}("")
 
     task = Threads.@spawn begin
         # Set up Pipe-based stdout/stderr capture (IOBuffer not supported in 1.12)
@@ -132,14 +134,13 @@ function _eval_in_sandbox(sandbox::Module, code::String, timeout::Real)::String
         finally
             close(stdout_pipe.in)
             close(stderr_pipe.in)
-            out_ref[]     = String(read(stdout_pipe.out))
+            out_ref[] = String(read(stdout_pipe.out))
             err_out_ref[] = String(read(stderr_pipe.out))
         end
     end
 
     status = timedwait(() -> istaskdone(task), float(timeout))
-    status == :timed_out &&
-        return "Error: execution timed out after $(timeout)s."
+    status == :timed_out && return "Error: execution timed out after $(timeout)s."
 
     if !isnothing(err_ref[])
         out = strip(out_ref[])
@@ -185,9 +186,9 @@ run!(agent, "Load DataFrames and create a DataFrame with columns a and b"; sessi
 run!(agent, "Now compute the mean of column a"; session=session)
 ```
 """
-const eval_julia_tool = NimbleTool(
-    name        = "eval_julia",
-    description = """Evaluate Julia code in a persistent sandbox and return the result.
+const eval_julia_tool = NimbleTool(;
+    name="eval_julia",
+    description="""Evaluate Julia code in a persistent sandbox and return the result.
 
 The sandbox retains state across calls within the same session — variables,
 imports, and function definitions all persist. The full project environment
@@ -201,22 +202,21 @@ Use this tool to:
 
 Stdout output and the return value of the last expression are both captured
 and returned. Errors are caught and returned as strings.""",
-    parameters  = Dict{String,Any}(
-        "type"       => "object",
+    parameters=Dict{String,Any}(
+        "type" => "object",
         "properties" => Dict{String,Any}(
             "code" => Dict{String,Any}(
-                "type"        => "string",
-                "description" => "Julia code to evaluate.",
+                "type" => "string", "description" => "Julia code to evaluate."
             ),
             "timeout" => Dict{String,Any}(
-                "type"        => "number",
+                "type" => "number",
                 "description" => "Timeout in seconds (default: 60).",
             ),
         ),
         "required" => ["code"],
     ),
-    callable = (args::Dict{Symbol,<:Any}) -> begin
-        code    = get(args, :code,    "")
+    callable=(args::Dict{Symbol,<:Any}) -> begin
+        code = get(args, :code, "")
         timeout = get(args, :timeout, 60)
 
         # Retrieve sandbox from session state if available.

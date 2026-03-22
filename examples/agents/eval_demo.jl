@@ -32,40 +32,34 @@ end
 
 # ── Set up agent ─────────────────────────────────────────────────────────────
 
-agent = Agent(
-    name         = "MathBot",
-    instructions = """You are a precise maths assistant. Use the available tools to compute answers.
+agent = Agent(;
+    name="MathBot",
+    instructions="""You are a precise maths assistant. Use the available tools to compute answers.
 Always respond with ONLY the numeric result — no extra words.""",
-    tools        = [add_tool, multiply_tool],
-    model        = "gpt-5.4-nano-2026-03-17",
+    tools=[add_tool, multiply_tool],
+    model="gpt-5.4-nano-2026-03-17",
 )
 
 # ── Define eval cases ────────────────────────────────────────────────────────
 
 cases = [
-    EvalCase(
-        input          = "What is 2 + 3?",
-        expected        = "5",
-        expected_tools  = ["add"],
-        tags            = ["addition"],
+    EvalCase(;
+        input="What is 2 + 3?", expected="5", expected_tools=["add"], tags=["addition"]
     ),
-    EvalCase(
-        input          = "What is 4 * 7?",
-        expected        = "28",
-        expected_tools  = ["multiply"],
-        tags            = ["multiplication"],
+    EvalCase(;
+        input="What is 4 * 7?",
+        expected="28",
+        expected_tools=["multiply"],
+        tags=["multiplication"],
     ),
-    EvalCase(
-        input          = "What is 10 + 5?",
-        expected        = "15",
-        expected_tools  = ["add"],
-        tags            = ["addition"],
+    EvalCase(;
+        input="What is 10 + 5?", expected="15", expected_tools=["add"], tags=["addition"]
     ),
-    EvalCase(
-        input          = "What is 6 * 9?",
-        expected        = "54",
-        expected_tools  = ["multiply"],
-        tags            = ["multiplication"],
+    EvalCase(;
+        input="What is 6 * 9?",
+        expected="54",
+        expected_tools=["multiply"],
+        tags=["multiplication"],
     ),
 ]
 
@@ -73,8 +67,10 @@ cases = [
 
 println("=== Running eval ($(length(cases)) cases) ===\n")
 
-report = run_eval(agent, cases;
-    metrics = [
+report = run_eval(
+    agent,
+    cases;
+    metrics=[
         exact_match,
         fuzzy_match,
         tool_trajectory,

@@ -61,9 +61,10 @@ chat!()
 # NimbleAgents> ...
 ```
 """
-function chat!(agent::Agent;
-    session ::Session = Session(app_name="chat", user_id="repl"),
-    verbose ::Bool    = false,
+function chat!(
+    agent::Agent;
+    session::Session=Session(app_name="chat", user_id="repl"),
+    verbose::Bool=false,
 )
     name = agent.name
     _chat_header(name)
@@ -99,8 +100,9 @@ function chat!(agent::Agent;
                 _chat_help()
                 continue
             else
-                printstyled("  Unknown command: $(input). Type /help for options.\n\n";
-                            color=:red)
+                printstyled(
+                    "  Unknown command: $(input). Type /help for options.\n\n"; color=:red
+                )
                 continue
             end
         end
@@ -108,16 +110,20 @@ function chat!(agent::Agent;
         # Run agent with streaming
         printstyled("$(name)> "; color=:cyan, bold=true)
         try
-            run!(agent, input;
-                 session  = session,
-                 verbose  = verbose,
-                 on_token = token -> print(token))
+            run!(
+                agent,
+                input;
+                session=session,
+                verbose=verbose,
+                on_token=token -> print(token),
+            )
         catch e
             if e isa HumanInterrupt
-                printstyled("\n  [Interrupted — tool approval required]\n";
-                            color=:yellow)
-                printstyled("  Tools: $(join([t.name for t in e.tool_calls], ", "))\n";
-                            color=:yellow)
+                printstyled("\n  [Interrupted — tool approval required]\n"; color=:yellow)
+                printstyled(
+                    "  Tools: $(join([t.name for t in e.tool_calls], ", "))\n";
+                    color=:yellow,
+                )
                 printstyled("  Type 'approve' or a redirect message:\n"; color=:yellow)
                 printstyled("  > "; color=:yellow)
                 response = strip(readline())
@@ -128,10 +134,13 @@ function chat!(agent::Agent;
                 end
                 # Re-run to continue
                 printstyled("$(name)> "; color=:cyan, bold=true)
-                run!(agent, "";
-                     session  = session,
-                     verbose  = verbose,
-                     on_token = token -> print(token))
+                run!(
+                    agent,
+                    "";
+                    session=session,
+                    verbose=verbose,
+                    on_token=token -> print(token),
+                )
             else
                 printstyled("\n  Error: $(sprint(showerror, e))\n"; color=:red)
             end
@@ -143,17 +152,19 @@ function chat!(agent::Agent;
 end
 
 # No-arg version: NimbleAgents docs bot
-function chat!(; model::String = "gpt-4.1-nano")
+function chat!(; model::String="gpt-4.1-nano")
     pkg_dir = pkgdir(@__MODULE__)
     if isnothing(pkg_dir)
-        error("Cannot locate NimbleAgents package directory. " *
-              "Are you running from a development checkout?")
+        error(
+            "Cannot locate NimbleAgents package directory. " *
+            "Are you running from a development checkout?",
+        )
     end
 
-    agent = Agent(
-        name         = "NimbleAgents",
-        model        = model,
-        instructions = """You are a documentation assistant for NimbleAgents.jl — a Julia framework for building AI agents.
+    agent = Agent(;
+        name="NimbleAgents",
+        model=model,
+        instructions="""You are a documentation assistant for NimbleAgents.jl — a Julia framework for building AI agents.
 
 You answer questions about the framework by reading its source code, documentation, and examples.
 Always base your answers on the actual files — do not guess or hallucinate APIs.
@@ -172,7 +183,7 @@ When answering:
 2. Read the specific file(s) to get accurate information
 3. Include code examples from the actual source when helpful
 4. Reference file paths so the user can find more details""",
-        tools = [read_file_tool, glob_tool, grep_tool, list_dir_tool],
+        tools=[read_file_tool, glob_tool, grep_tool, list_dir_tool],
     )
 
     chat!(agent)
@@ -186,17 +197,16 @@ function _chat_header(name::String)
     println()
     printstyled("  $name"; color=:cyan, bold=true)
     printstyled(" — interactive chat\n"; color=:light_black)
-    printstyled("  Type /help for commands, Ctrl+D or /exit to quit.\n";
-                color=:light_black)
+    printstyled("  Type /help for commands, Ctrl+D or /exit to quit.\n"; color=:light_black)
     printstyled("─" ^ 60; color=:light_black)
     println("\n")
 end
 
 function _chat_footer(session::Session)
     n_turns = length(session.events)
-    total_input  = sum(e.input_tokens  for e in session.events; init=0)
+    total_input = sum(e.input_tokens for e in session.events; init=0)
     total_output = sum(e.output_tokens for e in session.events; init=0)
-    total_cost   = sum(e.cost          for e in session.events; init=0.0)
+    total_cost = sum(e.cost for e in session.events; init=0.0)
 
     println()
     printstyled("─" ^ 60; color=:light_black)
@@ -215,7 +225,7 @@ end
 function _chat_trace(session::Session, name::String)
     if isempty(session.events)
         printstyled("  No turns recorded yet.\n\n"; color=:yellow)
-        return
+        return nothing
     end
 
     trace = Trace(session)

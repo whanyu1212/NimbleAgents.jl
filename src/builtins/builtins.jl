@@ -14,7 +14,7 @@
 ###############################################################################
 
 include("filesystem.jl")    # read_file_tool, write_file_tool, edit_file_tool,
-                            # list_dir_tool, glob_tool, delete_file_tool
+# list_dir_tool, glob_tool, delete_file_tool
 include("search.jl")        # grep_tool, find_files_tool
 include("shell.jl")         # bash_tool
 include("http.jl")          # http_get_tool, http_post_tool

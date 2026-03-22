@@ -41,19 +41,18 @@ end
 
     # String not found
     result3 = edit_file_tool.callable(tmp, "nonexistent string xyz", "replacement")
-    @test occursin("not found", lowercase(result3)) ||
-          occursin("error", lowercase(result3))
+    @test occursin("not found", lowercase(result3)) || occursin("error", lowercase(result3))
 end
 
 @testset "list_dir_tool" begin
     dir = mktempdir()
     write(joinpath(dir, "a.txt"), "")
-    write(joinpath(dir, "b.jl"),  "")
+    write(joinpath(dir, "b.jl"), "")
     mkpath(joinpath(dir, "subdir"))
 
     result = list_dir_tool.callable(dir)
-    @test occursin("a.txt",  result)
-    @test occursin("b.jl",   result)
+    @test occursin("a.txt", result)
+    @test occursin("b.jl", result)
     @test occursin("subdir", result)
 
     # Non-existent path → error
@@ -63,8 +62,8 @@ end
 
 @testset "glob_tool — Dict dispatch via _call_tool" begin
     dir = mktempdir()
-    write(joinpath(dir, "main.jl"),   "")
-    write(joinpath(dir, "utils.jl"),  "")
+    write(joinpath(dir, "main.jl"), "")
+    write(joinpath(dir, "utils.jl"), "")
     write(joinpath(dir, "README.md"), "")
     subdir = joinpath(dir, "src")
     mkpath(subdir)
@@ -72,7 +71,7 @@ end
 
     # Uses Dict-dispatch (glob_tool has optional base_dir)
     result = glob_tool.callable(Dict{Symbol,Any}(:pattern => "*.jl", :base_dir => dir))
-    @test occursin("main.jl",  result)
+    @test occursin("main.jl", result)
     @test occursin("utils.jl", result)
     @test !occursin("README.md", result)
 
@@ -110,11 +109,9 @@ end
     @test occursin("hello", result)
 
     # Case-insensitive flag
-    result2 = grep_tool.callable(Dict{Symbol,Any}(
-        :pattern        => "HELLO",
-        :path           => dir,
-        :case_sensitive => false,
-    ))
+    result2 = grep_tool.callable(
+        Dict{Symbol,Any}(:pattern => "HELLO", :path => dir, :case_sensitive => false)
+    )
     @test occursin("hello", lowercase(result2))
 
     # No matches
@@ -128,22 +125,28 @@ end
 
 @testset "find_files_tool" begin
     dir = mktempdir()
-    write(joinpath(dir, "main.jl"),    "")
-    write(joinpath(dir, "README.md"),  "")
+    write(joinpath(dir, "main.jl"), "")
+    write(joinpath(dir, "README.md"), "")
     mkpath(joinpath(dir, "src"))
     write(joinpath(dir, "src", "util.jl"), "")
 
-    result = find_files_tool.callable(Dict{Symbol,Any}(:pattern => "\\.jl", :base_dir => dir))
+    result = find_files_tool.callable(
+        Dict{Symbol,Any}(:pattern => "\\.jl", :base_dir => dir)
+    )
     @test occursin("main.jl", result)
     @test occursin("util.jl", result)
     @test !occursin("README.md", result)
 
     # No matches
-    result2 = find_files_tool.callable(Dict{Symbol,Any}(:pattern => "\\.xyz", :base_dir => dir))
+    result2 = find_files_tool.callable(
+        Dict{Symbol,Any}(:pattern => "\\.xyz", :base_dir => dir)
+    )
     @test occursin("no files", lowercase(result2))
 
     # Invalid regex falls back to literal match (no crash)
-    result3 = find_files_tool.callable(Dict{Symbol,Any}(:pattern => "[invalid", :base_dir => dir))
+    result3 = find_files_tool.callable(
+        Dict{Symbol,Any}(:pattern => "[invalid", :base_dir => dir)
+    )
     @test result3 isa String  # should not error
 end
 
@@ -159,7 +162,9 @@ end
     @test occursin("error", lowercase(result2)) || occursin("exit", lowercase(result2))
 
     # working_dir kwarg
-    result3 = bash_tool.callable(Dict{Symbol,Any}(:command => "pwd", :working_dir => "/tmp"))
+    result3 = bash_tool.callable(
+        Dict{Symbol,Any}(:command => "pwd", :working_dir => "/tmp")
+    )
     @test occursin("tmp", result3)
 
     # Timeout
@@ -172,7 +177,7 @@ end
 @testset "eval_julia_tool — basic evaluation" begin
     task_local_storage(:_repl_session_state, Dict{String,Any}())
     task_local_storage(:_current_session, nothing)
-    task_local_storage(:_current_store,   nothing)
+    task_local_storage(:_current_store, nothing)
 
     result = eval_julia_tool.callable(Dict{Symbol,Any}(:code => "1 + 1"))
     @test occursin("2", result)
@@ -184,9 +189,11 @@ end
 @testset "eval_julia_tool — stdout captured" begin
     task_local_storage(:_repl_session_state, Dict{String,Any}())
     task_local_storage(:_current_session, nothing)
-    task_local_storage(:_current_store,   nothing)
+    task_local_storage(:_current_store, nothing)
 
-    result = eval_julia_tool.callable(Dict{Symbol,Any}(:code => "println(\"printed output\")"))
+    result = eval_julia_tool.callable(
+        Dict{Symbol,Any}(:code => "println(\"printed output\")")
+    )
     @test occursin("printed output", result)
 end
 
@@ -194,7 +201,7 @@ end
     state = Dict{String,Any}()
     task_local_storage(:_repl_session_state, state)
     task_local_storage(:_current_session, nothing)
-    task_local_storage(:_current_store,   nothing)
+    task_local_storage(:_current_store, nothing)
 
     eval_julia_tool.callable(Dict{Symbol,Any}(:code => "x_persistence_test = 42"))
     result = eval_julia_tool.callable(Dict{Symbol,Any}(:code => "x_persistence_test"))
@@ -204,7 +211,7 @@ end
 @testset "eval_julia_tool — error reported" begin
     task_local_storage(:_repl_session_state, Dict{String,Any}())
     task_local_storage(:_current_session, nothing)
-    task_local_storage(:_current_store,   nothing)
+    task_local_storage(:_current_store, nothing)
 
     result = eval_julia_tool.callable(Dict{Symbol,Any}(:code => "sqrt(-1)"))
     # DomainError or similar — just check it doesn't crash and returns something
@@ -215,7 +222,7 @@ end
 @testset "eval_julia_tool — timeout" begin
     task_local_storage(:_repl_session_state, Dict{String,Any}())
     task_local_storage(:_current_session, nothing)
-    task_local_storage(:_current_store,   nothing)
+    task_local_storage(:_current_store, nothing)
 
     # Test _eval_in_sandbox timeout directly using a short-lived blocking op.
     # We can't use sleep(60) or `while true; end` because Threads.@spawn tasks
@@ -237,12 +244,12 @@ end
 # ── save_artifact_tool ────────────────────────────────────────────────────────
 
 @testset "save_artifact_tool" begin
-    store   = InMemorySessionStore()
+    store = InMemorySessionStore()
     session = Session(app_name="SaveTest", user_id="u")
     save!(store, session)
 
     task_local_storage(:_current_session, session)
-    task_local_storage(:_current_store,   store)
+    task_local_storage(:_current_store, store)
 
     tmpfile = tempname() * ".md"
     write(tmpfile, "# Report\nContent here.")
@@ -257,5 +264,5 @@ end
     task_local_storage(:_current_session, nothing)
     result2 = save_artifact_tool.callable(tmpfile, "orphan")
     @test occursin("error", lowercase(result2)) ||
-          occursin("no active session", lowercase(result2))
+        occursin("no active session", lowercase(result2))
 end
