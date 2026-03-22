@@ -1,0 +1,39 @@
+/* NimbleAgents docs — Julia-inspired colors */
+
+:root {
+  --julia-blue: #4063D8;
+  --julia-purple: #9558B2;
+  --julia-red: #CB3C33;
+  --julia-green: #389826;
+
+  --vp-c-brand-1: var(--julia-purple);
+  --vp-c-brand-2: var(--julia-purple);
+  --vp-c-brand-3: var(--julia-purple);
+
+  --vp-font-family-mono: 'JuliaMono', 'Fira Code', Menlo, Monaco, Consolas,
+    'Courier New', monospace;
+}
+
+.dark {
+  --vp-c-brand-1: #b07cc6;
+  --vp-c-brand-2: #b07cc6;
+  --vp-c-brand-3: #b07cc6;
+}
+
+:root {
+  --vp-button-brand-border: var(--vp-c-brand-1);
+  --vp-button-brand-text: var(--vp-c-white);
+  --vp-button-brand-bg: var(--vp-c-brand-1);
+  --vp-button-brand-hover-border: var(--vp-c-brand-2);
+  --vp-button-brand-hover-text: var(--vp-c-white);
+  --vp-button-brand-hover-bg: var(--vp-c-brand-2);
+}
+
+:root {
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: -webkit-linear-gradient(
+    120deg,
+    var(--julia-purple) 30%,
+    var(--julia-blue)
+  );
+}
