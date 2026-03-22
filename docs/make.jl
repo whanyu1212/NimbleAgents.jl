@@ -33,9 +33,15 @@ makedocs(;
     ],
 )
 
+# Build VitePress static site from the generated markdown.
+# npm/node_modules live in docs/, and package.json scripts already reference build/.documenter
+cd(@__DIR__) do
+    run(`npm run docs:build`)
+end
+
 deploydocs(;
     repo="github.com/whanyu1212/NimbleAgents.jl",
-    target="build",
+    target="build/.documenter/.vitepress/dist",
     push_preview=true,
     branch="gh-pages",
     devbranch="develop",
