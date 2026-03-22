@@ -10,7 +10,6 @@ makedocs(;
         repo="https://github.com/whanyu1212/NimbleAgents.jl",
         devbranch="develop",
         devurl="dev",
-        deploy_url="whanyu1212.github.io/NimbleAgents.jl",
     ),
     draft=false,
     source="src",
