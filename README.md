@@ -1,11 +1,19 @@
+<div align="center">
+
 # NimbleAgents.jl
+
+**A lightweight framework for building AI agents in pure Julia.**
 
 [![Dev Docs](https://img.shields.io/badge/docs-dev-blue.svg)](https://whanyu1212.github.io/NimbleAgents.jl/dev/)
 [![CI](https://github.com/whanyu1212/NimbleAgents.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/whanyu1212/NimbleAgents.jl/actions/workflows/CI.yml)
+[![codecov](https://codecov.io/gh/whanyu1212/NimbleAgents.jl/branch/develop/graph/badge.svg)](https://codecov.io/gh/whanyu1212/NimbleAgents.jl)
+[![Julia 1.12+](https://img.shields.io/badge/Julia-1.12%2B-9558B2?logo=julia)](https://julialang.org/)
 
-A simple, lightweight framework for building AI agents in pure Julia.
+Built on [PromptingTools.jl](https://github.com/svilupp/PromptingTools.jl) — supports OpenAI, Anthropic, Google Gemini, and any OpenAI-compatible endpoint.
 
-Built on [PromptingTools.jl](https://github.com/svilupp/PromptingTools.jl). Supports OpenAI, Anthropic, Google Gemini, and any OpenAI-compatible endpoint.
+</div>
+
+---
 
 ## Installation
 
@@ -14,50 +22,41 @@ using Pkg
 Pkg.add(url="https://github.com/whanyu1212/NimbleAgents.jl")
 ```
 
-Requires Julia 1.12+. Set your API key in `.env` or as an environment variable before use.
+Set your API key in `.env` or as an environment variable before use.
 
 ## Quick Start
 
 ```julia
 using NimbleAgents
 
+# Define a tool — the @tool macro generates the JSON schema automatically
 @tool function add(x::Int, y::Int)
     "Add two integers together."
     x + y
 end
 
+# Create an agent with tools
 agent = Agent(
     name         = "MathBot",
     instructions = "You are a helpful math assistant.",
     tools        = [add_tool],
 )
 
+# Run it
 result = run!(agent, "What is 42 + 17?")
 ```
 
-The `@tool` macro generates a JSON schema from the function signature automatically — no boilerplate.
-
 ## Features
 
-| Feature | Description |
-|---------|-------------|
-| **Tool system** | `@tool` macro — plain Julia functions become LLM-callable tools |
-| **Multi-agent** | Orchestrator-workers, triage/routing, fan-out, collaborative loops, chained handoffs |
-| **Session management** | Conversation history, key-value state, event log; in-memory, JSON, and SQLite backends |
-| **Long-term memory** | Cross-session memory scoped by user and app; auto-injected into the system prompt |
-| **Guardrails** | Input/output validation — `Pass`, `Block`, or `Modify` content |
-| **Structured output** | Parse LLM responses directly into Julia structs |
-| **Streaming** | Real-time token streaming via `on_token` callback |
-| **Hooks** | Lifecycle callbacks for logging, HITL approval flows, and message filtering |
-| **Cost tracking** | Built-in pricing for 40+ models; per-turn cost via `Trace` |
-| **Prompt caching** | `cache=:all` for Anthropic cache breakpoints; automatic for OpenAI; cache tokens tracked in traces |
-| **Tool output trimming** | Per-tool or agent-level character limits with head+tail preservation |
-| **Session TTL** | `cleanup!(store; max_age=3600)` to expire old sessions across all backends |
-| **MCP support** | Connect to Model Context Protocol servers (stdio + HTTP) |
-| **Skills** | Filesystem-based instruction packages loaded on demand |
-| **Rate limiting** | Token-bucket limiter per model or global default |
-| **Web UI** | `serve([agents])` — browser chat interface with SSE streaming *(experimental)* |
-| **Built-in tools** | Filesystem, shell, HTTP, Julia REPL, web search, artifact saving, memory |
+**Core** — `@tool` macro with auto-generated schemas | structured output into Julia structs | real-time token streaming | input/output guardrails (`Pass`, `Block`, `Modify`) | lifecycle hooks for logging, HITL approval, and message filtering
+
+**Multi-Agent** — agent handoffs with history filtering | `run_pipeline!` and `loop_pipeline!` for chained workflows | `fan_out` and `spawn_subagents` with real OS threads
+
+**Persistence** — session management with in-memory, JSON, and SQLite backends | cross-session long-term memory scoped by user/app | session TTL with `cleanup!`
+
+**Observability** — cost tracking for 40+ models via `Trace` | prompt caching support (Anthropic + OpenAI) with cache token tracking | tool output trimming | per-model rate limiting
+
+**Integrations** — MCP server support (stdio + HTTP) | filesystem-based skills | 15+ built-in tools (filesystem, shell, HTTP, REPL, search, memory) | web UI with SSE streaming
 
 ## Multi-Agent Patterns
 
@@ -90,4 +89,4 @@ summaries = fan_out(researcher, topics; parallel=true, session)
 
 ## Documentation
 
-[whanyu1212.github.io/NimbleAgents.jl/dev/](https://whanyu1212.github.io/NimbleAgents.jl/dev/)
+Full guides, examples, and API reference at **[whanyu1212.github.io/NimbleAgents.jl/dev/](https://whanyu1212.github.io/NimbleAgents.jl/dev/)**
