@@ -1,4 +1,6 @@
 import PromptingTools as PT
+using JSON3: JSON3
+using DBInterface: DBInterface
 
 @testset "Session" begin
 
@@ -125,4 +127,98 @@ end
     # 1000 * 1.0/1M + 500 * 2.0/1M = 0.001 + 0.001 = 0.002
     @test turn.cost ≈ 0.002
     remove_model_pricing!("cost-accum-model")
+end
+
+# ── Session updated_at ────────────────────────────────────────────────────────
+
+@testset "Session updated_at initialised" begin
+    s = Session()
+    @test s.updated_at ≈ s.created_at
+    @test s.updated_at > 0
+end
+
+# ── cleanup! — _resolve_cutoff ────────────────────────────────────────────────
+
+@testset "_resolve_cutoff" begin
+    # max_age converts to cutoff
+    cutoff = NimbleAgents._resolve_cutoff(3600, nothing)
+    @test cutoff ≈ time() - 3600 atol = 1.0
+
+    # before passes through
+    @test NimbleAgents._resolve_cutoff(nothing, 12345.0) == 12345.0
+
+    # both or neither → error
+    @test_throws ArgumentError NimbleAgents._resolve_cutoff(100, 100.0)
+    @test_throws ArgumentError NimbleAgents._resolve_cutoff(nothing, nothing)
+end
+
+# ── cleanup! — InMemorySessionStore ──────────────────────────────────────────
+
+@testset "cleanup! InMemorySessionStore" begin
+    store = InMemorySessionStore()
+
+    old = Session(app_name="App")
+    old.updated_at = time() - 7200  # 2 hours ago
+    store.sessions[old.id] = old
+
+    recent = Session(app_name="App")
+    recent.updated_at = time()
+    store.sessions[recent.id] = recent
+
+    removed = cleanup!(store; max_age=3600)
+    @test removed == 1
+    @test isnothing(load(store, old.id))
+    @test !isnothing(load(store, recent.id))
+end
+
+# ── cleanup! — JSONSessionStore ──────────────────────────────────────────────
+
+@testset "cleanup! JSONSessionStore" begin
+    dir = mktempdir()
+    store = JSONSessionStore(dir)
+
+    old = Session(app_name="App")
+    save!(store, old)
+    # Backdate the updated_at in the JSON file
+    path = joinpath(dir, old.id * ".json")
+    data = JSON3.read(read(path, String), Dict{String,Any})
+    data["updated_at"] = time() - 7200
+    write(path, JSON3.write(data))
+
+    recent = Session(app_name="App")
+    save!(store, recent)
+
+    removed = cleanup!(store; max_age=3600)
+    @test removed == 1
+    @test isnothing(load(store, old.id))
+    @test !isnothing(load(store, recent.id))
+end
+
+# ── cleanup! — SQLiteSessionStore ────────────────────────────────────────────
+
+@testset "cleanup! SQLiteSessionStore" begin
+    dbpath = joinpath(mktempdir(), "test_ttl.db")
+    store = SQLiteSessionStore(dbpath)
+
+    old = Session(app_name="App")
+    save!(store, old)
+    # Backdate updated_at in the database
+    DBInterface.execute(
+        store.db, "UPDATE sessions SET updated_at = ? WHERE id = ?", (time() - 7200, old.id)
+    )
+
+    recent = Session(app_name="App")
+    save!(store, recent)
+
+    removed = cleanup!(store; max_age=3600)
+    @test removed == 1
+    @test isnothing(load(store, old.id))
+    @test !isnothing(load(store, recent.id))
+
+    # cleanup! with before= keyword
+    save!(store, Session(app_name="App"))  # fresh session
+    removed2 = cleanup!(store; before=time() - 86400)
+    @test removed2 == 0  # nothing older than 1 day
+
+    close!(store)
 end

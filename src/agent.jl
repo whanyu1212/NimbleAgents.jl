@@ -427,6 +427,11 @@ A configured AI agent with a system prompt, a set of tools, and a model.
   the conversation (default: `0` = unlimited). When a tool result exceeds this limit, it
   is trimmed with head+tail preservation and an informative gap marker. Per-tool limits
   (`NimbleTool.max_output`) override this when set.
+- `cache::Union{Nothing, Symbol}`: Prompt caching strategy (default: `nothing` = no caching).
+  For Anthropic models, controls where `cache_control` breakpoints are injected:
+  `:system` (system prompt only), `:last` (last user message), `:all` (system + user messages),
+  `:tools` (tool definitions). OpenAI caches automatically — this field is ignored.
+  Cached tokens are tracked in `TurnEvent.cache_read_tokens` and `cache_write_tokens`.
 
 # Example — plain text output
 ```julia
@@ -469,6 +474,7 @@ Base.@kwdef struct Agent
     guardrails::Vector{Guardrail} = Guardrail[]
     memory::Union{AbstractMemoryService,Nothing} = nothing
     max_tool_output::Int = 0  # 0 = unlimited
+    cache::Union{Nothing,Symbol} = nothing  # prompt caching: :all, :system, :last, :tools, etc.
 end
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -603,6 +609,7 @@ function run!(
                 end
                 _acquire_rate_limit!(agent.model)
 
+                cache_kw = isnothing(agent.cache) ? (;) : (; cache=agent.cache)
                 conversation = _with_retry(agent.retry, agent.name) do
                     @mock PT.aitools(
                         conversation;
@@ -611,6 +618,7 @@ function run!(
                         return_all=true,
                         verbose=false,
                         agent.api_kwargs...,
+                        cache_kw...,
                     )
                 end
 
@@ -1024,6 +1032,7 @@ function _stream_final!(conversation, agent::Agent, all_tools, on_token::Functio
 
     # PT.aitools does not support streamcallback — use aigenerate for the final
     # streaming pass (tool calls have already been resolved by this point).
+    cache_kw = isnothing(agent.cache) ? (;) : (; cache=agent.cache)
     _acquire_rate_limit!(agent.model)
     result = _with_retry(agent.retry, agent.name) do
         @mock PT.aigenerate(
@@ -1033,6 +1042,7 @@ function _stream_final!(conversation, agent::Agent, all_tools, on_token::Functio
             verbose=false,
             streamcallback=cb,
             agent.api_kwargs...,
+            cache_kw...,
         )
     end
 
@@ -1051,6 +1061,7 @@ function _extract_output(agent::Agent, conversation, verbose::Bool)
 
     ctx = copy(conversation)
 
+    cache_kw = isnothing(agent.cache) ? (;) : (; cache=agent.cache)
     for attempt in 1:(agent.retry.max_parse_retries + 1)
         _acquire_rate_limit!(agent.model)
         msg = _with_retry(agent.retry, agent.name) do
@@ -1060,6 +1071,7 @@ function _extract_output(agent::Agent, conversation, verbose::Bool)
                 model=agent.model,
                 verbose=false,
                 agent.api_kwargs...,
+                cache_kw...,
             )
         end
 

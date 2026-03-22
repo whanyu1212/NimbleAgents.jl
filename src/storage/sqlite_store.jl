@@ -98,6 +98,7 @@ end
 # ── save! ─────────────────────────────────────────────────────────────────────
 
 function save!(store::SQLiteSessionStore, session::Session)
+    session.updated_at = time()
     history_json = JSON3.write(_msg_to_dict.(session.history))
     state_json = JSON3.write(_safe_state(session.state))
     artifacts_json = JSON3.write(_artifact_to_dict.(session.artifacts))
@@ -121,7 +122,7 @@ function save!(store::SQLiteSessionStore, session::Session)
             history_json,
             state_json,
             artifacts_json,
-            time(),
+            session.updated_at,
         ),
     )
 
@@ -133,7 +134,7 @@ end
 function load(store::SQLiteSessionStore, session_id::String)::Union{Session,Nothing}
     result = DBInterface.execute(
         store.db,
-        "SELECT id, app_name, user_id, created_at, history, state, artifacts FROM sessions WHERE id = ?",
+        "SELECT id, app_name, user_id, created_at, updated_at, history, state, artifacts FROM sessions WHERE id = ?",
         (session_id,),
     )
 
@@ -152,6 +153,8 @@ function load(store::SQLiteSessionStore, session_id::String)::Union{Session,Noth
     ]
 
     s = Session(; id=row.id, app_name=row.app_name, user_id=row.user_id)
+    s.created_at = row.created_at
+    s.updated_at = row.updated_at
     append!(s.history, history)
     merge!(s.state, state)
     append!(s.artifacts, artifacts)
@@ -192,6 +195,34 @@ function list(
         )
     end
     [row.id for row in _collect_rows(result)]
+end
+
+# ── cleanup! ──────────────────────────────────────────────────────────────────
+
+function cleanup!(
+    store::SQLiteSessionStore;
+    max_age::Union{Real,Nothing}=nothing,
+    before::Union{Float64,Nothing}=nothing,
+)::Int
+    cutoff = _resolve_cutoff(max_age, before)
+
+    # Get IDs of expired sessions so we can also clean up artifact dirs
+    result = DBInterface.execute(
+        store.db, "SELECT id FROM sessions WHERE updated_at < ?", (cutoff,)
+    )
+    expired_ids = [row.id for row in _collect_rows(result)]
+
+    if !isempty(expired_ids)
+        DBInterface.execute(
+            store.db, "DELETE FROM sessions WHERE updated_at < ?", (cutoff,)
+        )
+        for id in expired_ids
+            art_dir = joinpath(store.artifacts_dir, id)
+            isdir(art_dir) && rm(art_dir; recursive=true)
+        end
+    end
+
+    length(expired_ids)
 end
 
 # ── close! ────────────────────────────────────────────────────────────────────

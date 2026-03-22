@@ -46,7 +46,7 @@ export MCPServer, MCPClient, MCPHTTPClient, connect!, list_tools, close!
 # Artifacts and persistence
 export Artifact, register_artifact!
 export AbstractSessionStore, InMemorySessionStore, JSONSessionStore, SQLiteSessionStore
-export save!, load, list, store_artifacts_dir
+export save!, load, list, store_artifacts_dir, cleanup!
 # Memory
 export AbstractMemoryService, InMemoryMemoryService, SQLiteMemoryService, MemoryEntry
 export add_memory!, search_memory, delete_memory!, list_memories

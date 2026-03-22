@@ -31,8 +31,10 @@ already recorded by `run!`.
 - `turns::Vector{TurnEvent}`: All turns in order.
 - `total_input_tokens::Int`: Sum of input tokens across all turns.
 - `total_output_tokens::Int`: Sum of output tokens across all turns.
+- `total_cache_read_tokens::Int`: Sum of tokens read from prompt cache.
+- `total_cache_write_tokens::Int`: Sum of tokens written to prompt cache.
 - `total_tokens::Int`: `total_input_tokens + total_output_tokens`.
-- `total_cost::Float64`: Estimated total USD cost across all turns.
+- `total_cost::Float64`: Estimated total USD cost across all turns (cache-adjusted).
 - `total_llm_calls::Int`: Total number of LLM requests made.
 - `total_tool_calls::Int`: Total number of tool calls made.
 - `duration::Float64`: Wall-clock seconds from first turn start to last turn end.
@@ -53,6 +55,8 @@ struct Trace
     turns::Vector{TurnEvent}
     total_input_tokens::Int
     total_output_tokens::Int
+    total_cache_read_tokens::Int
+    total_cache_write_tokens::Int
     total_tokens::Int
     total_cost::Float64
     total_llm_calls::Int
@@ -62,10 +66,12 @@ struct Trace
 end
 
 function Trace(turns::Vector{TurnEvent})
-    isempty(turns) && return Trace(turns, 0, 0, 0, 0.0, 0, 0, 0.0, String[])
+    isempty(turns) && return Trace(turns, 0, 0, 0, 0, 0, 0.0, 0, 0, 0.0, String[])
 
     total_in = sum(t.input_tokens for t in turns)
     total_out = sum(t.output_tokens for t in turns)
+    total_cache_read = sum(t.cache_read_tokens for t in turns)
+    total_cache_write = sum(t.cache_write_tokens for t in turns)
     total_cost = sum(t.cost for t in turns)
     total_llm = sum(t.llm_calls for t in turns)
     total_tool = sum(length(t.tool_calls) for t in turns)
@@ -83,6 +89,8 @@ function Trace(turns::Vector{TurnEvent})
         turns,
         total_in,
         total_out,
+        total_cache_read,
+        total_cache_write,
         total_in + total_out,
         total_cost,
         total_llm,
@@ -135,6 +143,13 @@ function print_trace(trace::Trace; io::IO=stdout)
         "  Tokens     : $(trace.total_input_tokens) in / " *
         "$(trace.total_output_tokens) out / $(trace.total_tokens) total",
     )
+    if trace.total_cache_read_tokens > 0 || trace.total_cache_write_tokens > 0
+        println(
+            io,
+            "  Cache      : $(trace.total_cache_read_tokens) read / " *
+            "$(trace.total_cache_write_tokens) write",
+        )
+    end
     if trace.total_cost > 0
         println(io, "  Cost       : \$$(round(trace.total_cost; digits=4))")
     end
@@ -184,6 +199,8 @@ function save_trace(trace::Trace, path::String)
     data = Dict{String,Any}(
         "total_input_tokens" => trace.total_input_tokens,
         "total_output_tokens" => trace.total_output_tokens,
+        "total_cache_read_tokens" => trace.total_cache_read_tokens,
+        "total_cache_write_tokens" => trace.total_cache_write_tokens,
         "total_tokens" => trace.total_tokens,
         "total_cost" => trace.total_cost,
         "total_llm_calls" => trace.total_llm_calls,
@@ -199,6 +216,8 @@ function save_trace(trace::Trace, path::String)
                 "llm_calls" => t.llm_calls,
                 "input_tokens" => t.input_tokens,
                 "output_tokens" => t.output_tokens,
+                "cache_read_tokens" => t.cache_read_tokens,
+                "cache_write_tokens" => t.cache_write_tokens,
                 "cost" => t.cost,
                 "elapsed" => t.elapsed,
                 "timestamp" => t.timestamp,

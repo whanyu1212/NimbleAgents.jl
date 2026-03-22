@@ -49,7 +49,9 @@ A record of one complete `run!` invocation — one "turn" in the conversation.
 - `llm_calls::Int`: Number of LLM requests made.
 - `input_tokens::Int`: Total input tokens used across all LLM calls this turn.
 - `output_tokens::Int`: Total output tokens used across all LLM calls this turn.
-- `cost::Float64`: Estimated USD cost for this turn (based on model pricing).
+- `cache_read_tokens::Int`: Tokens read from prompt cache (discounted cost).
+- `cache_write_tokens::Int`: Tokens written to prompt cache (premium cost on Anthropic).
+- `cost::Float64`: Estimated USD cost for this turn (cache-adjusted when available).
 - `elapsed::Float64`: Wall-clock time in seconds for the whole turn.
 - `timestamp::Float64`: `time()` when `run!` was called.
 """
@@ -62,13 +64,15 @@ mutable struct TurnEvent
     llm_calls::Int
     input_tokens::Int
     output_tokens::Int
+    cache_read_tokens::Int
+    cache_write_tokens::Int
     cost::Float64
     elapsed::Float64
     timestamp::Float64
 end
 
 function TurnEvent(agent::String, model::String, input::String)
-    TurnEvent(agent, model, input, nothing, ToolEvent[], 0, 0, 0, 0.0, 0.0, time())
+    TurnEvent(agent, model, input, nothing, ToolEvent[], 0, 0, 0, 0, 0, 0.0, 0.0, time())
 end
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -94,6 +98,7 @@ Inspired by Google ADK's Session model. Holds three things:
 - `state::Dict{String,Any}`: Cross-turn key-value store.
 - `events::Vector{TurnEvent}`: Ordered log of every completed turn.
 - `created_at::Float64`: `time()` when the session was created.
+- `updated_at::Float64`: `time()` when the session was last saved (used for TTL expiry).
 - `lock::ReentrantLock`: Protects `history` and `events` for concurrent `fan_out` / `spawn_subagents` calls.
 
 # Example
@@ -118,6 +123,7 @@ mutable struct Session
     events::Vector{TurnEvent}
     artifacts::Vector{Any}   # Vector{Artifact} — typed after artifacts.jl loads
     created_at::Float64
+    updated_at::Float64
     lock::ReentrantLock
 end
 
@@ -126,6 +132,7 @@ function Session(;
     app_name::String="NimbleAgents",
     user_id::String="default",
 )
+    now = time()
     Session(
         id,
         app_name,
@@ -134,7 +141,8 @@ function Session(;
         Dict{String,Any}(),
         TurnEvent[],
         Any[],
-        time(),
+        now,
+        now,
         ReentrantLock(),
     )
 end
@@ -306,6 +314,8 @@ end
 _register_default_pricing!()
 
 # Accumulate token usage from a PT response message into a TurnEvent.
+# Uses PT's cache-adjusted cost when available (TokenUsage.cost > 0),
+# otherwise falls back to our model pricing registry.
 function _accumulate_usage!(turn::TurnEvent, msg)
     usage = msg.usage
     isnothing(usage) && return nothing
@@ -313,7 +323,18 @@ function _accumulate_usage!(turn::TurnEvent, msg)
     out_tok = something(usage.output_tokens, 0)
     turn.input_tokens += in_tok
     turn.output_tokens += out_tok
-    turn.cost += _compute_cost(turn.model, in_tok, out_tok)
+
+    # Cache token tracking
+    if hasproperty(usage, :cache_read_tokens)
+        turn.cache_read_tokens += something(usage.cache_read_tokens, 0)
+    end
+    if hasproperty(usage, :cache_write_tokens)
+        turn.cache_write_tokens += something(usage.cache_write_tokens, 0)
+    end
+
+    # Prefer PT's cost (includes cache discounts) when available
+    pt_cost = hasproperty(usage, :cost) ? something(usage.cost, 0.0) : 0.0
+    turn.cost += pt_cost > 0.0 ? pt_cost : _compute_cost(turn.model, in_tok, out_tok)
 end
 
 # ──────────────────────────────────────────────────────────────────────────────

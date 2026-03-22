@@ -133,6 +133,7 @@ store_artifacts_dir(s::InMemorySessionStore) = s.artifacts_dir
 
 # save! just upserts the session into the dict — the object is already live.
 function save!(store::InMemorySessionStore, session::Session)
+    session.updated_at = time()
     store.sessions[session.id] = session
     return session
 end
@@ -159,6 +160,46 @@ function list(
         (id, s) in store.sessions if (isnothing(app_name) || s.app_name == app_name) &&
             (isnothing(user_id) || s.user_id == user_id)
     ]
+end
+
+# ── Session TTL / expiry ──────────────────────────────────────────────────────
+
+# Convert max_age / before kwargs into a cutoff timestamp.
+function _resolve_cutoff(
+    max_age::Union{Real,Nothing}, before::Union{Float64,Nothing}
+)::Float64
+    if !isnothing(max_age) && !isnothing(before)
+        throw(ArgumentError("provide max_age or before, not both"))
+    end
+    if isnothing(max_age) && isnothing(before)
+        throw(ArgumentError("provide max_age or before"))
+    end
+    !isnothing(before) ? before : time() - Float64(max_age)
+end
+
+"""
+    cleanup!(store; max_age, before) -> Int
+
+Delete expired sessions from the store and return the number removed.
+
+- `max_age::Real`: Delete sessions not updated in the last `max_age` seconds.
+- `before::Float64`: Delete sessions with `updated_at < before` (Unix timestamp).
+
+Provide exactly one of the two keyword arguments.
+"""
+function cleanup! end
+
+function cleanup!(
+    store::InMemorySessionStore;
+    max_age::Union{Real,Nothing}=nothing,
+    before::Union{Float64,Nothing}=nothing,
+)::Int
+    cutoff = _resolve_cutoff(max_age, before)
+    expired = [id for (id, s) in store.sessions if s.updated_at < cutoff]
+    for id in expired
+        delete!(store, id)
+    end
+    length(expired)
 end
 
 # ── register_artifact! ────────────────────────────────────────────────────────
@@ -339,12 +380,14 @@ Serialise session history, state, events, and artifacts to a JSON file.
 Non-serialisable state values (REPL sandbox, open handles) are silently dropped.
 """
 function save!(store::JSONSessionStore, session::Session)
+    session.updated_at = time()
     path = joinpath(store.dir, session.id * ".json")
     data = Dict{String,Any}(
         "id" => session.id,
         "app_name" => session.app_name,
         "user_id" => session.user_id,
         "created_at" => session.created_at,
+        "updated_at" => session.updated_at,
         "history" => _msg_to_dict.(session.history),
         "state" => _safe_state(session.state),
         "artifacts" => _artifact_to_dict.(session.artifacts),
@@ -369,6 +412,8 @@ function load(store::JSONSessionStore, session_id::String)::Union{Session,Nothin
     artifacts = Artifact[_dict_to_artifact(Dict{String,Any}(a)) for a in data["artifacts"]]
 
     s = Session(; id=data["id"], app_name=data["app_name"], user_id=data["user_id"])
+    s.created_at = get(data, "created_at", s.created_at)
+    s.updated_at = get(data, "updated_at", s.created_at)
     append!(s.history, history)
     merge!(s.state, state)
     append!(s.artifacts, artifacts)
@@ -417,4 +462,29 @@ function list(
         end
     end
     ids
+end
+
+function cleanup!(
+    store::JSONSessionStore;
+    max_age::Union{Real,Nothing}=nothing,
+    before::Union{Float64,Nothing}=nothing,
+)::Int
+    cutoff = _resolve_cutoff(max_age, before)
+    count = 0
+    for f in readdir(store.dir)
+        endswith(f, ".json") || continue
+        path = joinpath(store.dir, f)
+        data = try
+            JSON3.read(read(path, String), Dict{String,Any})
+        catch
+            continue
+        end
+        updated = get(data, "updated_at", get(data, "created_at", Inf))
+        if updated < cutoff
+            session_id = splitext(f)[1]
+            delete!(store, session_id)
+            count += 1
+        end
+    end
+    count
 end
