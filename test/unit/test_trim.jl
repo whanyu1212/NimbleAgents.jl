@@ -1,3 +1,4 @@
+
 @testset "Tool output trimming" begin
 
     # ── _trim_tool_output ─────────────────────────────────────────────────────
@@ -100,8 +101,6 @@
     # ── Integration: trimming in run! ─────────────────────────────────────────
 
     @testset "agent-level trimming in run!" begin
-        import PromptingTools as PT
-
         big_result = join(["result_line_$(lpad(i, 5, '0'))" for i in 1:1000], '\n')
 
         big_tool = NimbleTool(;
@@ -122,20 +121,20 @@
             max_tool_output=500,
         )
 
-        _trim_ai_msg(text) = PT.AIMessage(; content=text, tokens=(10, 10), elapsed=0.1)
+        _trim_ai_msg(text) = NimbleAgents.AIMessage(; content=text, tokens=(10, 10), elapsed=0.1)
         function _trim_tool_req(tool_name, args)
-            tm = PT.ToolMessage(;
+            tm = NimbleAgents.ToolMessage(;
                 content=nothing,
                 raw="",
                 tool_call_id="call_$(tool_name)",
                 name=tool_name,
                 args=Dict{Symbol,Any}(Symbol(k) => v for (k, v) in args),
             )
-            PT.AIToolRequest(; tool_calls=[tm], content="", tokens=(5, 5), elapsed=0.1)
+            NimbleAgents.AIToolRequest(; tool_calls=[tm], content="", tokens=(5, 5), elapsed=0.1)
         end
 
         call_count = Ref(0)
-        patch = Mocking.@patch function PT.aitools(conv; kwargs...)
+        patch = Mocking.@patch function NimbleAgents.aitools(conv; kwargs...)
             call_count[] += 1
             if call_count[] == 1
                 push!(conv, _trim_tool_req("big_tool", Dict("x" => "go")))
@@ -156,7 +155,7 @@
             @test length(string(tool_events[1].result)) == length(big_result)
 
             # The tool message in session.history should be trimmed
-            tool_msgs = filter(m -> m isa PT.ToolMessage, session.history)
+            tool_msgs = filter(m -> m isa NimbleAgents.ToolMessage, session.history)
             @test !isempty(tool_msgs)
             @test length(tool_msgs[end].content) < length(big_result)
             @test occursin("trimmed", tool_msgs[end].content)
@@ -164,8 +163,6 @@
     end
 
     @testset "per-tool max_output overrides agent default" begin
-        import PromptingTools as PT
-
         big_result = join(["per_tool_line_$(lpad(i, 4, '0'))" for i in 1:500], '\n')
 
         capped_tool = NimbleTool(;
@@ -187,20 +184,20 @@
             max_tool_output=50_000,  # generous agent limit — per-tool 200 should win
         )
 
-        _trim_ai_msg2(text) = PT.AIMessage(; content=text, tokens=(10, 10), elapsed=0.1)
+        _trim_ai_msg2(text) = NimbleAgents.AIMessage(; content=text, tokens=(10, 10), elapsed=0.1)
         function _trim_tool_req2(tool_name, args)
-            tm = PT.ToolMessage(;
+            tm = NimbleAgents.ToolMessage(;
                 content=nothing,
                 raw="",
                 tool_call_id="call_$(tool_name)",
                 name=tool_name,
                 args=Dict{Symbol,Any}(Symbol(k) => v for (k, v) in args),
             )
-            PT.AIToolRequest(; tool_calls=[tm], content="", tokens=(5, 5), elapsed=0.1)
+            NimbleAgents.AIToolRequest(; tool_calls=[tm], content="", tokens=(5, 5), elapsed=0.1)
         end
 
         call_count2 = Ref(0)
-        patch = Mocking.@patch function PT.aitools(conv; kwargs...)
+        patch = Mocking.@patch function NimbleAgents.aitools(conv; kwargs...)
             call_count2[] += 1
             if call_count2[] == 1
                 push!(conv, _trim_tool_req2("capped", Dict("x" => "go")))
@@ -215,7 +212,7 @@
             result = run!(agent, "test"; session=session, verbose=false)
             @test result == "Done"
 
-            tool_msgs = filter(m -> m isa PT.ToolMessage, session.history)
+            tool_msgs = filter(m -> m isa NimbleAgents.ToolMessage, session.history)
             @test !isempty(tool_msgs)
             # Per-tool limit is 200, so content should be much smaller than the full result
             @test length(tool_msgs[end].content) < 400  # 200 + marker overhead

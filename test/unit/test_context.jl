@@ -1,4 +1,3 @@
-import PromptingTools as PT
 
 @testset "ContextConfig" begin
 
@@ -36,27 +35,27 @@ end
 @testset "_estimate_tokens" begin
 
     # AIMessage carries real token counts from the API
-    msg_ai = PT.AIMessage(content="hello"; tokens=(10, 5))
+    msg_ai = NimbleAgents.AIMessage(content="hello"; tokens=(10, 5))
     @test NimbleAgents._estimate_tokens(msg_ai) == 15
 
     # UserMessage has no tokens field — falls back to char heuristic
     # "hello world" = 11 chars → ceil(11/4) = 3
-    msg_user = PT.UserMessage("hello world")
+    msg_user = NimbleAgents.UserMessage("hello world")
     @test NimbleAgents._estimate_tokens(msg_user) == ceil(Int, 11 / 4)
     @test NimbleAgents._estimate_tokens(msg_user) == 3
 
     # AIMessage with zero tokens also falls back to char heuristic
-    msg_zero = PT.AIMessage(content="hello world"; tokens=(0, 0))
+    msg_zero = NimbleAgents.AIMessage(content="hello world"; tokens=(0, 0))
     @test NimbleAgents._estimate_tokens(msg_zero) == 3
 
     # empty content
-    msg_empty = PT.UserMessage("")
+    msg_empty = NimbleAgents.UserMessage("")
     @test NimbleAgents._estimate_tokens(msg_empty) == 0
 
     # _history_tokens sums across messages
     s = Session()
-    push!(s.history, PT.UserMessage("hello world"))              # 3 tokens (heuristic)
-    push!(s.history, PT.AIMessage(content="hi"; tokens=(5, 3)))  # 8 tokens (exact)
+    push!(s.history, NimbleAgents.UserMessage("hello world"))              # 3 tokens (heuristic)
+    push!(s.history, NimbleAgents.AIMessage(content="hi"; tokens=(5, 3)))  # 8 tokens (exact)
     @test NimbleAgents._history_tokens(s) == 11
 end
 
@@ -65,8 +64,8 @@ end
     session = Session()
 
     # well below threshold — compact! should be a no-op
-    push!(session.history, PT.UserMessage("hello"))
-    push!(session.history, PT.AIMessage(content="hi"))
+    push!(session.history, NimbleAgents.UserMessage("hello"))
+    push!(session.history, NimbleAgents.AIMessage(content="hi"))
 
     result = compact!(session, agent)
     @test result == false
@@ -82,7 +81,7 @@ end
     session = Session()
 
     for i in 1:5
-        push!(session.history, PT.UserMessage("msg $i"))
+        push!(session.history, NimbleAgents.UserMessage("msg $i"))
     end
 
     result = compact!(session, agent)
@@ -104,7 +103,7 @@ end
     session = Session()
 
     # 6 messages: first 3 are "old", last 3 should be kept
-    msgs = [PT.UserMessage("msg $i") for i in 1:6]
+    msgs = [NimbleAgents.UserMessage("msg $i") for i in 1:6]
     append!(session.history, msgs)
 
     # We expect compact! to attempt a summarisation LLM call and fail

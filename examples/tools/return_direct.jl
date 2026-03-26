@@ -21,6 +21,35 @@ DotEnv.load!()
 using NimbleAgents
 import Term: Panel, tprintln
 
+function example_model(; tier::Symbol=:mini)
+    if isempty(get(ENV, "GOOGLE_API_KEY", "")) && !isempty(get(ENV, "GEMINI_API_KEY", ""))
+        ENV["GOOGLE_API_KEY"] = ENV["GEMINI_API_KEY"]
+    end
+
+    override = strip(get(ENV, "NIMBLEAGENTS_EXAMPLE_MODEL", ""))
+    !isempty(override) && return override
+
+    openai_model, gemini_model = tier === :nano ?
+        ("gpt-5.4-nano-2026-03-17", "gemini-2.5-flash-lite") :
+        ("gpt-5.4-mini", "gemini-2.5-flash")
+
+    provider = lowercase(strip(get(ENV, "NIMBLEAGENTS_EXAMPLE_PROVIDER", "")))
+    provider == "openai" && return openai_model
+    provider == "gemini" && return gemini_model
+    !isempty(provider) && error(
+        "Unsupported NIMBLEAGENTS_EXAMPLE_PROVIDER=$(provider). Use 'openai' or 'gemini'.",
+    )
+
+    !isempty(get(ENV, "OPENAI_API_KEY", "")) && return openai_model
+    !isempty(get(ENV, "GOOGLE_API_KEY", "")) && return gemini_model
+
+    error(
+        "Set OPENAI_API_KEY, GOOGLE_API_KEY, or GEMINI_API_KEY, or set NIMBLEAGENTS_EXAMPLE_MODEL.",
+    )
+end
+
+const EXAMPLE_MODEL = example_model(; tier=:nano)
+
 # ── Example 1 — FAQ lookup ────────────────────────────────────────────────────
 #
 # The LLM calls lookup_faq. Because return_direct=true, the tool's answer is
@@ -60,7 +89,7 @@ faq_agent = Agent(;
   topics (refund, shipping, password). Use search_web for anything else.
   """,
     tools=[lookup_faq_tool, search_web_tool],
-    model="gpt-5.4-nano-2026-03-17",
+    model=EXAMPLE_MODEL,
 )
 
 result1 = run!(faq_agent, "How long do refunds take?"; verbose=false)
@@ -98,14 +127,14 @@ agent_normal = Agent(;
     name="PriceBot-Normal",
     instructions="You answer product pricing questions.",
     tools=[get_price_normal_tool],
-    model="gpt-5.4-nano-2026-03-17",
+    model=EXAMPLE_MODEL,
 )
 
 agent_direct = Agent(;
     name="PriceBot-Direct",
     instructions="You answer product pricing questions.",
     tools=[get_price_direct_tool],
-    model="gpt-5.4-nano-2026-03-17",
+    model=EXAMPLE_MODEL,
 )
 
 r_normal = run!(agent_normal, "How much does the Widget cost?"; verbose=false)

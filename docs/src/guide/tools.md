@@ -189,17 +189,28 @@ CLIArg(type, description; required=true)
 
 Under the hood, `dispatch_tool` routes LLM tool calls to the correct callable:
 
-```julia
-tool_map = build_tool_map([add_tool, greet_tool])
-result = dispatch_tool(tool_map, "add", Dict{Symbol,Any}(:x => 10, :y => 32))
-# result == 42
+```jldoctest tool_dispatch_guide
+julia> using NimbleAgents
+
+julia> @tool function add_dispatch(x::Int, y::Int)
+           "Add two integers."
+           x + y
+       end;
+
+julia> tool_map = build_tool_map([add_dispatch_tool]);
+
+julia> dispatch_tool(tool_map, "add_dispatch", Dict(:x => 10, :y => 32))
+42
+
+julia> tools_schema([add_dispatch_tool])[1]["function"]["name"]
+"add_dispatch"
 ```
 
 ## A Note on Provider-Native Tools
 
 Some LLM providers offer built-in server-side tools — for example, Google Search in Gemini, web search in Claude, or code interpreter in OpenAI. These are not standard function-calling tools; they require provider-specific API parameters and return results in different formats.
 
-NimbleAgents (via [PromptingTools.jl](https://github.com/svilupp/PromptingTools.jl)) currently supports standard function-calling tools across all providers. Provider-native tools are not yet supported — this is an area of active development in the Julia LLM ecosystem and something we'd like to add in the future.
+NimbleAgents currently supports standard function-calling tools for its built-in OpenAI and Gemini providers. Provider-native tools are not yet supported.
 
 In the meantime, NimbleAgents includes built-in tools that cover similar ground:
 

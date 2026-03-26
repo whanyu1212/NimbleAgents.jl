@@ -4,6 +4,11 @@
 
 # ── grep_tool ──────────────────────────────────────────────────────────────────
 
+"""
+    grep_tool
+
+Built-in `NimbleTool` that searches files/directories with a regular expression.
+"""
 const grep_tool = NimbleTool(;
     name="grep",
     description="Search for a regex pattern in a file or directory. Returns matching lines with file path and line number.",
@@ -62,6 +67,11 @@ end
 
 # ── find_files_tool ────────────────────────────────────────────────────────────
 
+"""
+    find_files_tool
+
+Built-in `NimbleTool` that recursively finds file names matching a pattern.
+"""
 const find_files_tool = NimbleTool(;
     name="find_files",
     description="Find files whose names match a pattern (substring or regex) within a directory tree.",

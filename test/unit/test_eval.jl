@@ -2,14 +2,13 @@
 # test_eval.jl — unit tests for the eval harness
 ###############################################################################
 
-import PromptingTools as PT
 
 # Reuses _make_turn and _make_tool_event helpers from test_tracer.jl (already
 # in scope via timed_include ordering in runtests.jl).
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
-_ai_msg_eval(text) = PT.AIMessage(; content=text, tokens=(10, 10), elapsed=0.1)
+_ai_msg_eval(text) = NimbleAgents.AIMessage(; content=text, tokens=(10, 10), elapsed=0.1)
 
 # ── EvalCase construction ────────────────────────────────────────────────────
 
@@ -254,7 +253,7 @@ end
 # ── run_eval (mocked) ────────────────────────────────────────────────────────
 
 @testset "run_eval — basic pass" begin
-    patch = @patch function PT.aitools(conv; kwargs...)
+    patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         push!(conv, _ai_msg_eval("4"))
         conv
     end
@@ -272,7 +271,7 @@ end
 end
 
 @testset "run_eval — basic fail" begin
-    patch = @patch function PT.aitools(conv; kwargs...)
+    patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         push!(conv, _ai_msg_eval("5"))
         conv
     end
@@ -290,7 +289,7 @@ end
 
 @testset "run_eval — multiple cases" begin
     call_count = Ref(0)
-    patch = @patch function PT.aitools(conv; kwargs...)
+    patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         call_count[] += 1
         # First call returns "4", second returns "wrong"
         text = call_count[] == 1 ? "4" : "wrong"
@@ -311,7 +310,7 @@ end
 end
 
 @testset "run_eval — error handling" begin
-    patch = @patch function PT.aitools(conv; kwargs...)
+    patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         error("LLM exploded")
     end
 
@@ -330,7 +329,7 @@ end
 end
 
 @testset "run_eval — pass_threshold < 1.0" begin
-    patch = @patch function PT.aitools(conv; kwargs...)
+    patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         push!(conv, _ai_msg_eval("close match"))
         conv
     end
@@ -350,11 +349,11 @@ end
 @testset "run_eval — tool trajectory with mocked tool calls" begin
     # Mock aitools to request a tool call, then return a final message
     call_count = Ref(0)
-    patch = @patch function PT.aitools(conv; kwargs...)
+    patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         call_count[] += 1
         if call_count[] == 1
             # First call: LLM wants to call "add" tool
-            tm = PT.ToolMessage(
+            tm = NimbleAgents.ToolMessage(
                 content=nothing,
                 raw="",
                 tool_call_id="call_ev_add",
@@ -363,7 +362,7 @@ end
             )
             push!(
                 conv,
-                PT.AIToolRequest(; tool_calls=[tm], content="", tokens=(5, 5), elapsed=0.1),
+                NimbleAgents.AIToolRequest(; tool_calls=[tm], content="", tokens=(5, 5), elapsed=0.1),
             )
         else
             # Second call: final text

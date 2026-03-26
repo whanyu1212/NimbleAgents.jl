@@ -1,11 +1,18 @@
+"""
+    NimbleAgents
+
+A lightweight Julia framework for building tool-using LLM agents.
+"""
 module NimbleAgents
 
+include("llm_core.jl")
 include("tools.jl")
 include("cli_tools.jl")
 include("external_agent.jl")
 include("session.jl")
 include("storage/artifacts.jl")
 include("storage/memory.jl")
+include("storage/sqlite_backends.jl")
 include("skills.jl")
 include("mcp.jl")
 include("guardrails.jl")
@@ -14,8 +21,6 @@ include("agent.jl")
 include("tracer.jl")
 include("eval.jl")
 include("handoff.jl")
-include("storage/sqlite_store.jl")
-include("storage/sqlite_memory.jl")
 include("builtins/builtins.jl")
 include("gemini.jl")
 include("repl.jl")

@@ -1,5 +1,4 @@
-import PromptingTools as PT
-using Mocking
+using .Mocking
 
 @testset "Handoff & agent_as_tool" begin
 
@@ -123,12 +122,12 @@ end
     # ── _apply_handoff_filter ────────────────────────────────────────────────
     @testset "_apply_handoff_filter" begin
         # Build a sample history
-        msgs = PT.AbstractMessage[
-            PT.SystemMessage("system"),
-            PT.UserMessage("hello"),
-            PT.AIMessage(content="I'll call a tool"),
-            PT.UserMessage("thanks"),
-            PT.AIMessage(content="done"),
+        msgs = NimbleAgents.AbstractMessage[
+            NimbleAgents.SystemMessage("system"),
+            NimbleAgents.UserMessage("hello"),
+            NimbleAgents.AIMessage(content="I'll call a tool"),
+            NimbleAgents.UserMessage("thanks"),
+            NimbleAgents.AIMessage(content="done"),
         ]
 
         # :all — pass through unchanged
@@ -142,25 +141,25 @@ end
         @test length(stripped) == length(msgs)
 
         # :strip_tools with actual tool messages
-        tm = PT.ToolMessage(
+        tm = NimbleAgents.ToolMessage(
             content=nothing, raw="", tool_call_id="c1", name="foo", args=Dict{Symbol,Any}()
         )
-        atr = PT.AIToolRequest(; tool_calls=[tm], content="", tokens=(5, 5), elapsed=0.1)
-        msgs_with_tools = PT.AbstractMessage[
-            PT.UserMessage("hello"), atr, tm, PT.AIMessage(content="done")
+        atr = NimbleAgents.AIToolRequest(; tool_calls=[tm], content="", tokens=(5, 5), elapsed=0.1)
+        msgs_with_tools = NimbleAgents.AbstractMessage[
+            NimbleAgents.UserMessage("hello"), atr, tm, NimbleAgents.AIMessage(content="done")
         ]
         stripped2 = NimbleAgents._apply_handoff_filter(
             HandoffFilter(:strip_tools), msgs_with_tools
         )
         @test length(stripped2) == 2
-        @test stripped2[1] isa PT.UserMessage
-        @test stripped2[2] isa PT.AIMessage
+        @test stripped2[1] isa NimbleAgents.UserMessage
+        @test stripped2[2] isa NimbleAgents.AIMessage
 
         # :last_n
         last2 = NimbleAgents._apply_handoff_filter(HandoffFilter(:last_n, 2), msgs)
         @test length(last2) == 2
-        @test last2[1] isa PT.UserMessage   # "thanks"
-        @test last2[2] isa PT.AIMessage     # "done"
+        @test last2[1] isa NimbleAgents.UserMessage   # "thanks"
+        @test last2[2] isa NimbleAgents.AIMessage     # "done"
 
         # :last_n with n >= length
         all_back = NimbleAgents._apply_handoff_filter(HandoffFilter(:last_n, 100), msgs)
@@ -172,11 +171,11 @@ end
 
         # :custom function
         only_user = HandoffFilter(
-            h -> PT.AbstractMessage[m for m in h if m isa PT.UserMessage]
+            h -> NimbleAgents.AbstractMessage[m for m in h if m isa NimbleAgents.UserMessage]
         )
         user_msgs = NimbleAgents._apply_handoff_filter(only_user, msgs)
         @test length(user_msgs) == 2
-        @test all(m -> m isa PT.UserMessage, user_msgs)
+        @test all(m -> m isa NimbleAgents.UserMessage, user_msgs)
 
         # unknown kind falls through to return history
         unknown = HandoffFilter(:unknown_kind, 0, nothing)
@@ -189,18 +188,18 @@ end
 # ──────────────────────────────────────────────────────────────────────────────
 
 @testset "loop_pipeline!" begin
-    _ai_msg_lp(text) = PT.AIMessage(; content=text, tokens=(10, 10), elapsed=0.1)
+    _ai_msg_lp(text) = NimbleAgents.AIMessage(; content=text, tokens=(10, 10), elapsed=0.1)
 
     @testset "stops on stop_when" begin
         call_count = Ref(0)
 
-        patch = @patch function PT.aitools(conv; kwargs...)
+        patch = @patch function NimbleAgents.aitools(conv; kwargs...)
             call_count[] += 1
             # Coder says code, Reviewer says APPROVED on 2nd round
             agent_name = get(Dict(kwargs), :model, "")
             last_user = ""
             for m in reverse(conv)
-                if m isa PT.UserMessage
+                if m isa NimbleAgents.UserMessage
                     last_user = m.content
                     break
                 end
@@ -236,7 +235,7 @@ end
     @testset "respects max_rounds" begin
         round_count = Ref(0)
 
-        patch = @patch function PT.aitools(conv; kwargs...)
+        patch = @patch function NimbleAgents.aitools(conv; kwargs...)
             round_count[] += 1
             push!(conv, _ai_msg_lp("iteration $(round_count[])"))
             conv
@@ -264,7 +263,7 @@ end
     end
 
     @testset "with session" begin
-        patch = @patch function PT.aitools(conv; kwargs...)
+        patch = @patch function NimbleAgents.aitools(conv; kwargs...)
             push!(conv, _ai_msg_lp("done"))
             conv
         end
@@ -283,6 +282,72 @@ end
             )
             @test result == "done"
             @test length(session.events) >= 1
+        end
+    end
+end
+
+@testset "run_pipeline!" begin
+    _ai_msg_rp(text) = NimbleAgents.AIMessage(; content=text, tokens=(10, 10), elapsed=0.1)
+
+    @testset "handoff history includes matching tool result" begin
+        billing = Agent(
+            name="BillingAgent",
+            instructions="Handle billing requests.",
+            model="gpt-5.4-nano-2026-03-17",
+        )
+        triage = Agent(
+            name="TriageAgent",
+            instructions="Route billing issues to BillingAgent.",
+            tools=[handoff_tool(billing)],
+            model="gpt-5.4-mini",
+        )
+        session = Session()
+        saw_valid_history = Ref(false)
+
+        patch = @patch function NimbleAgents.aitools(conv; kwargs...)
+            model = get(Dict(kwargs), :model, "")
+
+            if model == triage.model
+                tc = NimbleAgents.ToolMessage(
+                    content=nothing,
+                    raw="",
+                    tool_call_id="handoff_call_1",
+                    name="handoff_to_BillingAgent",
+                    args=Dict(:message => "Please help with billing."),
+                )
+                push!(
+                    conv,
+                    NimbleAgents.AIToolRequest(; tool_calls=[tc], content=nothing, tokens=(5, 5), elapsed=0.1),
+                )
+                return conv
+            end
+
+            if model == billing.model
+                reqs = [m for m in conv if m isa NimbleAgents.AIToolRequest]
+                replies = Set(m.tool_call_id for m in conv if m isa NimbleAgents.ToolMessage)
+                for req in reqs
+                    ids = Set(tc.tool_call_id for tc in req.tool_calls)
+                    ids ⊆ replies || error("missing tool response in handoff history")
+                end
+                saw_valid_history[] = true
+                push!(conv, _ai_msg_rp("Handled by billing"))
+                return conv
+            end
+
+            error("Unexpected model in mocked aitools: $(model)")
+        end
+
+        apply(patch) do
+            result = run_pipeline!(
+                triage, "I was charged twice this month."; session=session, verbose=false
+            )
+            @test result == "Handled by billing"
+            @test saw_valid_history[]
+            @test any(m -> m isa NimbleAgents.AIToolRequest, session.history)
+            @test any(
+                m -> m isa NimbleAgents.ToolMessage && m.tool_call_id == "handoff_call_1",
+                session.history,
+            )
         end
     end
 end

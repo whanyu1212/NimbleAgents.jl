@@ -7,10 +7,10 @@ CurrentModule = NimbleAgents
 All examples are self-contained and can be run from the repo root:
 
 ```bash
-julia --project examples/<category>/<file>.jl
+julia --project=examples examples/<category>/<file>.jl
 ```
 
-API keys go in a `.env` file at the repo root — loaded automatically by `DotEnv.load!()`.
+Examples call `DotEnv.load!()` themselves. You can either define API keys in `.env` or export `OPENAI_API_KEY` / `GOOGLE_API_KEY`.
 
 ## Multi-Agent Orchestration
 
@@ -279,6 +279,7 @@ Agents can store and retrieve facts across sessions using `AbstractMemoryService
 
 ```julia
 memory = InMemoryMemoryService()
+# using SQLite  # for SQLiteMemoryService extension
 # memory = SQLiteMemoryService("memory.db")  # persistent
 agent = Agent(
     name         = "MemoryBot",

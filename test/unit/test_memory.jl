@@ -134,8 +134,6 @@ end
 end
 
 @testset "_memory_prompt" begin
-    import PromptingTools as PT
-
     # nil memory
     @test NimbleAgents._memory_prompt(nothing, "hello", nothing) == ""
 

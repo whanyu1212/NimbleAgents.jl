@@ -1,9 +1,99 @@
-using Mocking
-Mocking.activate()
+using SQLite
 
 using NimbleAgents
 using Test
 using Aqua
+
+module Mocking
+using ..NimbleAgents
+
+export @patch, apply, activate
+
+activate() = nothing
+
+struct Patch
+    target::Symbol
+    fn::Function
+end
+
+function _target_override_setter(target::Symbol)
+    if target === :aitools
+        return NimbleAgents._set_aitools_override!
+    elseif target === :aigenerate
+        return NimbleAgents._set_aigenerate_override!
+    elseif target === :aiextract
+        return NimbleAgents._set_aiextract_override!
+    else
+        error("Unsupported patch target: $(target)")
+    end
+end
+
+function apply(patch::Patch, f::Function)
+    apply(Patch[patch], f)
+end
+
+function apply(patches::AbstractVector{Patch}, f::Function)
+    olds = Pair{Patch,Union{Nothing,Function}}[]
+    try
+        for patch in patches
+            setter = _target_override_setter(patch.target)
+            old = setter(patch.fn)
+            push!(olds, patch => old)
+        end
+        return f()
+    finally
+        for (patch, old) in Iterators.reverse(olds)
+            setter = _target_override_setter(patch.target)
+            setter(old)
+        end
+    end
+end
+
+# Support do-block call style: `apply(patch) do ... end`
+apply(f::Function, patch::Patch) = apply(patch, f)
+apply(f::Function, patches::AbstractVector{Patch}) = apply(patches, f)
+
+macro patch(def)
+    def isa Expr && def.head == :function ||
+        error("@patch expects a function definition")
+    sig = def.args[1]
+    sig isa Expr && sig.head == :call ||
+        error("@patch expects a named function definition")
+    fname = sig.args[1]
+    target = if fname isa Expr && fname.head == :. && length(fname.args) == 2
+        prop = fname.args[2]
+        prop isa QuoteNode ? prop.value : prop
+    elseif fname isa Symbol
+        fname
+    else
+        error("@patch expects a simple function target, got: $(sprint(show, fname))")
+    end
+
+    target isa Symbol || error("@patch target must be a Symbol")
+    target in (:aitools, :aigenerate, :aiextract) || error(
+        "@patch only supports NimbleAgents.aitools/.aigenerate/.aiextract, got: $(target)",
+    )
+
+    patched_name = gensym(:patched)
+    patched_sig = deepcopy(sig)
+    patched_sig.args[1] = patched_name
+    patched_def = Expr(:function, patched_sig, def.args[2])
+
+    return esc(
+        quote
+            $patched_def
+            Mocking.Patch($(QuoteNode(target)), $patched_name)
+        end,
+    )
+end
+
+end
+
+using .Mocking
+Mocking.activate()
+
+const RUN_LIVE_TESTS = lowercase(get(ENV, "NIMBLEAGENTS_RUN_LIVE_TESTS", "false")) in
+                       ("1", "true", "yes")
 
 # Tools must be defined at module scope (not inside @testset blocks) so that
 # Julia does not mangle argument names in closure-wrapped code.
@@ -95,13 +185,19 @@ end
 @testset "Aqua" begin
     Aqua.test_all(
         NimbleAgents;
-        stale_deps=(ignore=[:Test, :DotEnv, :Term],),
+        stale_deps=(ignore=[:Test],),
         deps_compat=(ignore=[:Test],),
     )
 end
 
 @testset "NimbleAgents.jl" begin
     timed_include("unit/test_tools.jl")
+    timed_include("unit/test_docstrings.jl")
+    timed_include("unit/test_reference_docs.jl")
+    timed_include("unit/test_public_api.jl")
+    timed_include("unit/test_source_layout.jl")
+    timed_include("unit/test_examples_syntax.jl")
+    timed_include("unit/test_examples_runtime.jl")
     timed_include("unit/test_agent.jl")
     timed_include("unit/test_session.jl")
     timed_include("unit/test_handoff.jl")
@@ -119,6 +215,7 @@ end
     timed_include("unit/test_tracer.jl")
     timed_include("unit/test_eval.jl")
     timed_include("unit/test_rate_limit.jl")
+    timed_include("unit/test_perf_stability.jl")
     timed_include("unit/test_parallel_tools.jl")
     timed_include("unit/test_sqlite_store.jl")
     timed_include("unit/test_memory.jl")
@@ -126,4 +223,15 @@ end
     timed_include("unit/test_gemini.jl")
     timed_include("unit/test_repl.jl")
     timed_include("unit/test_trim.jl")
+end
+
+@testset "Integration (Live)" begin
+    if RUN_LIVE_TESTS
+        timed_include("integration/test_structured_output.jl")
+        timed_include("integration/test_agent_live.jl")
+    else
+        println(
+            "  ⏭  integration tests skipped (set NIMBLEAGENTS_RUN_LIVE_TESTS=true to enable)",
+        )
+    end
 end

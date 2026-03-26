@@ -11,7 +11,39 @@
 # Run from the repo root:
 #   julia --project examples/guardrails/input_guardrails.jl
 
+using DotEnv
+DotEnv.load!()
+
 using NimbleAgents
+
+function example_model(; tier::Symbol=:mini)
+    if isempty(get(ENV, "GOOGLE_API_KEY", "")) && !isempty(get(ENV, "GEMINI_API_KEY", ""))
+        ENV["GOOGLE_API_KEY"] = ENV["GEMINI_API_KEY"]
+    end
+
+    override = strip(get(ENV, "NIMBLEAGENTS_EXAMPLE_MODEL", ""))
+    !isempty(override) && return override
+
+    openai_model, gemini_model = tier === :nano ?
+        ("gpt-5.4-nano-2026-03-17", "gemini-2.5-flash-lite") :
+        ("gpt-5.4-mini", "gemini-2.5-flash")
+
+    provider = lowercase(strip(get(ENV, "NIMBLEAGENTS_EXAMPLE_PROVIDER", "")))
+    provider == "openai" && return openai_model
+    provider == "gemini" && return gemini_model
+    !isempty(provider) && error(
+        "Unsupported NIMBLEAGENTS_EXAMPLE_PROVIDER=$(provider). Use 'openai' or 'gemini'.",
+    )
+
+    !isempty(get(ENV, "OPENAI_API_KEY", "")) && return openai_model
+    !isempty(get(ENV, "GOOGLE_API_KEY", "")) && return gemini_model
+
+    error(
+        "Set OPENAI_API_KEY, GOOGLE_API_KEY, or GEMINI_API_KEY, or set NIMBLEAGENTS_EXAMPLE_MODEL.",
+    )
+end
+
+const EXAMPLE_MODEL = example_model()
 
 # ── Pattern 1: Rule-based Block ───────────────────────────────────────────────
 # Reject inputs that look like they contain a Social Security Number.
@@ -27,7 +59,10 @@ no_ssn = Guardrail(;
 )
 
 agent = Agent(;
-    name="SecureBot", instructions="You are a helpful assistant.", guardrails=[no_ssn]
+    name="SecureBot",
+    instructions="You are a helpful assistant.",
+    guardrails=[no_ssn],
+    model=EXAMPLE_MODEL,
 )
 
 println("=== Pattern 1: Block on SSN ===")
@@ -51,6 +86,7 @@ agent2 = Agent(;
     name="CleanBot",
     instructions="You are a helpful assistant. Repeat back what the user said.",
     guardrails=[strip_html],
+    model=EXAMPLE_MODEL,
 )
 
 println("=== Pattern 2: Modify — strip HTML ===")
@@ -82,6 +118,7 @@ agent3 = Agent(;
     name="FilterBot",
     instructions="You are a helpful assistant.",
     guardrails=[no_profanity, length_check],
+    model=EXAMPLE_MODEL,
 )
 
 println("=== Pattern 3: Chained guardrails ===")

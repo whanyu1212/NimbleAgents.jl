@@ -1,4 +1,3 @@
-import PromptingTools as PT
 using JSON3: JSON3
 using DBInterface: DBInterface
 
@@ -27,7 +26,7 @@ using DBInterface: DBInterface
     @test s.state["name"] == "Bob"
 
     # ── reset! clears everything ──────────────────────────────────────────
-    push!(s.history, PT.UserMessage("hi"))
+    push!(s.history, NimbleAgents.UserMessage("hi"))
     push!(s.events, TurnEvent("TestAgent", "test-model", "hi"))
     reset!(s)
     @test isempty(s)
@@ -57,23 +56,23 @@ using DBInterface: DBInterface
 
     # ── _save_history! skips system messages and already-seeded msgs ──────
     s3 = Session()
-    conv = PT.AbstractMessage[
-        PT.SystemMessage("You are helpful."),
-        PT.UserMessage("turn 1"),
-        PT.AIMessage("response 1"),
+    conv = NimbleAgents.AbstractMessage[
+        NimbleAgents.SystemMessage("You are helpful."),
+        NimbleAgents.UserMessage("turn 1"),
+        NimbleAgents.AIMessage("response 1"),
     ]
     NimbleAgents._save_history!(s3, conv, 2)  # 2 seeded
     @test length(s3) == 1
-    @test s3.history[1] isa PT.AIMessage
+    @test s3.history[1] isa NimbleAgents.AIMessage
 
     # system message is never saved
     NimbleAgents._save_history!(s3, conv, 0)  # treat all as new
-    @test all(m -> !(m isa PT.SystemMessage), s3.history)
+    @test all(m -> !(m isa NimbleAgents.SystemMessage), s3.history)
 
     # ── _accumulate_usage! adds token counts ─────────────────────────────
     turn2 = TurnEvent("TestAgent", "test-model", "test")
-    mock_msg = PT.AIMessage(
-        content="hi", usage=PT.TokenUsage(input_tokens=10, output_tokens=5)
+    mock_msg = NimbleAgents.AIMessage(
+        content="hi", usage=NimbleAgents.TokenUsage(input_tokens=10, output_tokens=5)
     )
     NimbleAgents._accumulate_usage!(turn2, mock_msg)
     @test turn2.input_tokens == 10
@@ -119,8 +118,8 @@ end
 @testset "_accumulate_usage! computes cost" begin
     set_model_pricing!("cost-accum-model", 1.0, 2.0)  # $1/M in, $2/M out
     turn = TurnEvent("Bot", "cost-accum-model", "hi")
-    mock_msg = PT.AIMessage(
-        content="ok", usage=PT.TokenUsage(input_tokens=1000, output_tokens=500)
+    mock_msg = NimbleAgents.AIMessage(
+        content="ok", usage=NimbleAgents.TokenUsage(input_tokens=1000, output_tokens=500)
     )
     NimbleAgents._accumulate_usage!(turn, mock_msg)
 

@@ -2,6 +2,11 @@
 # builtins/save_artifact.jl — agent-initiated artifact registration
 ###############################################################################
 
+"""
+    save_artifact_tool
+
+Built-in `NimbleTool` that registers an existing file as a session artifact.
+"""
 const save_artifact_tool = NimbleTool(;
     name="save_artifact",
     description="""Register a file as a named artifact in the current session.
