@@ -7,7 +7,7 @@
 [![Dev Docs](https://img.shields.io/badge/docs-dev-blue.svg)](https://whanyu1212.github.io/NimbleAgents.jl/dev/)
 [![CI](https://github.com/whanyu1212/NimbleAgents.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/whanyu1212/NimbleAgents.jl/actions/workflows/CI.yml)
 [![codecov](https://codecov.io/gh/whanyu1212/NimbleAgents.jl/branch/develop/graph/badge.svg)](https://codecov.io/gh/whanyu1212/NimbleAgents.jl)
-[![Julia 1.10+](https://img.shields.io/badge/Julia-1.10%2B-9558B2?logo=julia)](https://julialang.org/)
+[![Julia 1.12+](https://img.shields.io/badge/Julia-1.12%2B-9558B2?logo=julia)](https://julialang.org/)
 
 Built on NimbleAgents' own OpenAI-compatible provider layer — supports OpenAI and Google Gemini.
 
