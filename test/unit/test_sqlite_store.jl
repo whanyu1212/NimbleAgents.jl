@@ -2,8 +2,6 @@
 # test_sqlite_store.jl — unit tests for SQLiteSessionStore
 ###############################################################################
 
-import PromptingTools as PT
-
 @testset "SQLiteSessionStore — construction" begin
     path = joinpath(mktempdir(), "test.db")
     store = SQLiteSessionStore(path)
@@ -16,8 +14,8 @@ end
     store = SQLiteSessionStore(joinpath(mktempdir(), "test.db"))
 
     s = Session(app_name="TestApp", user_id="alice")
-    push!(s.history, PT.UserMessage("hello"))
-    push!(s.history, PT.AIMessage("hi there"))
+    push!(s.history, NimbleAgents.UserMessage("hello"))
+    push!(s.history, NimbleAgents.AIMessage("hi there"))
     s.state["score"] = 42
 
     save!(store, s)
@@ -28,9 +26,9 @@ end
     @test s2.app_name == "TestApp"
     @test s2.user_id == "alice"
     @test length(s2.history) == 2
-    @test s2.history[1] isa PT.UserMessage
+    @test s2.history[1] isa NimbleAgents.UserMessage
     @test s2.history[1].content == "hello"
-    @test s2.history[2] isa PT.AIMessage
+    @test s2.history[2] isa NimbleAgents.AIMessage
     @test s2.history[2].content == "hi there"
     @test s2.state["score"] == 42
 
@@ -51,7 +49,7 @@ end
     save!(store, s)
 
     s.state["v"] = 2
-    push!(s.history, PT.UserMessage("updated"))
+    push!(s.history, NimbleAgents.UserMessage("updated"))
     save!(store, s)
 
     s2 = load(store, s.id)
@@ -129,21 +127,23 @@ end
     store = SQLiteSessionStore(joinpath(mktempdir(), "test.db"))
 
     s = Session(app_name="MsgTest", user_id="u")
-    push!(s.history, PT.SystemMessage("you are a bot"))
-    push!(s.history, PT.UserMessage("hello"))
-    push!(s.history, PT.AIMessage("hi"))
+    push!(s.history, NimbleAgents.SystemMessage("you are a bot"))
+    push!(s.history, NimbleAgents.UserMessage("hello"))
+    push!(s.history, NimbleAgents.AIMessage("hi"))
     push!(
         s.history,
-        PT.ToolMessage(content="result", name="my_tool", tool_call_id="tc1", raw="result"),
+        NimbleAgents.ToolMessage(
+            content="result", name="my_tool", tool_call_id="tc1", raw="result"
+        ),
     )
     save!(store, s)
 
     s2 = load(store, s.id)
     @test length(s2.history) == 4
-    @test s2.history[1] isa PT.SystemMessage
-    @test s2.history[2] isa PT.UserMessage
-    @test s2.history[3] isa PT.AIMessage
-    @test s2.history[4] isa PT.ToolMessage
+    @test s2.history[1] isa NimbleAgents.SystemMessage
+    @test s2.history[2] isa NimbleAgents.UserMessage
+    @test s2.history[3] isa NimbleAgents.AIMessage
+    @test s2.history[4] isa NimbleAgents.ToolMessage
     @test s2.history[4].content == "result"
 
     close!(store)

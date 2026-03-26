@@ -9,7 +9,7 @@
 [![codecov](https://codecov.io/gh/whanyu1212/NimbleAgents.jl/branch/develop/graph/badge.svg)](https://codecov.io/gh/whanyu1212/NimbleAgents.jl)
 [![Julia 1.12+](https://img.shields.io/badge/Julia-1.12%2B-9558B2?logo=julia)](https://julialang.org/)
 
-Built on [PromptingTools.jl](https://github.com/svilupp/PromptingTools.jl) — supports OpenAI, Anthropic, Google Gemini, and any OpenAI-compatible endpoint.
+Built on NimbleAgents' own OpenAI-compatible provider layer — supports OpenAI and Google Gemini.
 
 </div>
 
@@ -22,7 +22,7 @@ using Pkg
 Pkg.add(url="https://github.com/whanyu1212/NimbleAgents.jl")
 ```
 
-Set your API key in `.env` or as an environment variable before use.
+Set your API key as an environment variable before use (`OPENAI_API_KEY` or `GOOGLE_API_KEY`).
 
 ## Quick Start
 
@@ -54,7 +54,7 @@ result = run!(agent, "What is 42 + 17?")
 
 **Persistence** — session management with in-memory, JSON, and SQLite backends | cross-session long-term memory scoped by user/app | session TTL with `cleanup!`
 
-**Observability** — cost tracking for 40+ models via `Trace` | prompt caching support (Anthropic + OpenAI) with cache token tracking | tool output trimming | per-model rate limiting
+**Observability** — cost tracking for 40+ models via `Trace` | tool output trimming | per-model rate limiting
 
 **Integrations** — MCP server support (stdio + HTTP) | filesystem-based skills | 15+ built-in tools (filesystem, shell, HTTP, REPL, search, memory) | web UI with SSE streaming
 

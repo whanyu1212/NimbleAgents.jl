@@ -37,7 +37,7 @@ features:
     details: Parse LLM responses into Julia structs. Type-safe agent outputs with automatic schema inference.
     link: /guide/agents#structured-output
   - title: Cost Tracking
-    details: Built-in pricing for 40+ models across OpenAI, Anthropic, and Gemini. Per-turn cost breakdown via Trace.
+    details: Built-in pricing for 40+ models, including OpenAI and Gemini. Per-turn cost breakdown via Trace.
     link: /guide/agents#cost-tracking
   - title: MCP Support
     details: Native Model Context Protocol support. Connect to any MCP server and use their tools seamlessly.
@@ -81,7 +81,7 @@ NimbleAgents is designed to be **simple** and **Julia-native**:
 
 - **No boilerplate** — tools are just Julia functions with docstrings
 - **Type-safe** — leverage Julia's type system for tool schemas and output parsing
-- **Lightweight** — built on [PromptingTools.jl](https://github.com/svilupp/PromptingTools.jl), minimal dependencies
+- **Lightweight** — native OpenAI-compatible provider layer, minimal dependencies
 - **Extensible** — built-in support for MCP servers, skills, CLI tools, and custom hooks
 
 ## Why Julia for agents?

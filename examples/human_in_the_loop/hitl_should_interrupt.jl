@@ -23,6 +23,37 @@ DotEnv.load!()
 using NimbleAgents
 import Term: Panel, tprintln
 
+function example_model(; tier::Symbol=:mini)
+    if isempty(get(ENV, "GOOGLE_API_KEY", "")) && !isempty(get(ENV, "GEMINI_API_KEY", ""))
+        ENV["GOOGLE_API_KEY"] = ENV["GEMINI_API_KEY"]
+    end
+
+    override = strip(get(ENV, "NIMBLEAGENTS_EXAMPLE_MODEL", ""))
+    !isempty(override) && return override
+
+    openai_model, gemini_model = if tier === :nano
+        ("gpt-5.4-nano-2026-03-17", "gemini-2.5-flash-lite")
+    else
+        ("gpt-5.4-mini", "gemini-2.5-flash")
+    end
+
+    provider = lowercase(strip(get(ENV, "NIMBLEAGENTS_EXAMPLE_PROVIDER", "")))
+    provider == "openai" && return openai_model
+    provider == "gemini" && return gemini_model
+    !isempty(provider) && error(
+        "Unsupported NIMBLEAGENTS_EXAMPLE_PROVIDER=$(provider). Use 'openai' or 'gemini'.",
+    )
+
+    !isempty(get(ENV, "OPENAI_API_KEY", "")) && return openai_model
+    !isempty(get(ENV, "GOOGLE_API_KEY", "")) && return gemini_model
+
+    error(
+        "Set OPENAI_API_KEY, GOOGLE_API_KEY, or GEMINI_API_KEY, or set NIMBLEAGENTS_EXAMPLE_MODEL.",
+    )
+end
+
+const EXAMPLE_MODEL = example_model(; tier=:nano)
+
 # ── Tools ─────────────────────────────────────────────────────────────────────
 
 @tool function send_email(to::String, subject::String, body::String)
@@ -55,8 +86,8 @@ agent = Agent(;
   You are an operations assistant. You can read files, list directories,
   send emails, and delete files. Always complete the user's request.
   """,
-    tools=[send_email, delete_file, read_file, list_files],
-    model="gpt-5.4-nano-2026-03-17",
+    tools=[send_email_tool, delete_file_tool, read_file_tool, list_files_tool],
+    model=EXAMPLE_MODEL,
     hooks=AgentHooks(; should_interrupt=(name, args) -> name in DANGEROUS_TOOLS),
 )
 

@@ -11,6 +11,37 @@ DotEnv.load!()
 
 using NimbleAgents
 
+function example_model(; tier::Symbol=:mini)
+    if isempty(get(ENV, "GOOGLE_API_KEY", "")) && !isempty(get(ENV, "GEMINI_API_KEY", ""))
+        ENV["GOOGLE_API_KEY"] = ENV["GEMINI_API_KEY"]
+    end
+
+    override = strip(get(ENV, "NIMBLEAGENTS_EXAMPLE_MODEL", ""))
+    !isempty(override) && return override
+
+    openai_model, gemini_model = if tier === :nano
+        ("gpt-5.4-nano-2026-03-17", "gemini-2.5-flash-lite")
+    else
+        ("gpt-5.4-mini", "gemini-2.5-flash")
+    end
+
+    provider = lowercase(strip(get(ENV, "NIMBLEAGENTS_EXAMPLE_PROVIDER", "")))
+    provider == "openai" && return openai_model
+    provider == "gemini" && return gemini_model
+    !isempty(provider) && error(
+        "Unsupported NIMBLEAGENTS_EXAMPLE_PROVIDER=$(provider). Use 'openai' or 'gemini'.",
+    )
+
+    !isempty(get(ENV, "OPENAI_API_KEY", "")) && return openai_model
+    !isempty(get(ENV, "GOOGLE_API_KEY", "")) && return gemini_model
+
+    error(
+        "Set OPENAI_API_KEY, GOOGLE_API_KEY, or GEMINI_API_KEY, or set NIMBLEAGENTS_EXAMPLE_MODEL.",
+    )
+end
+
+const EXAMPLE_MODEL = example_model(; tier=:nano)
+
 # ── Scenario 1: File system agent ─────────────────────────────────────────────
 #
 # A coding assistant that can read, search, and edit files.
@@ -28,7 +59,7 @@ coding_agent = Agent(;
   Always show relevant file contents or search results in your response.
   """,
     tools=[read_file_tool, list_dir_tool, glob_tool, grep_tool, find_files_tool],
-    model="gpt-5.4-nano-2026-03-17",
+    model=EXAMPLE_MODEL,
 )
 
 result1 = run!(
@@ -55,7 +86,7 @@ editor_agent = Agent(;
   Confirm what you did after each operation.
   """,
     tools=[read_file_tool, write_file_tool, edit_file_tool],
-    model="gpt-5.4-nano-2026-03-17",
+    model=EXAMPLE_MODEL,
 )
 
 result2 = run!(
@@ -83,7 +114,7 @@ shell_agent = Agent(;
   Prefer safe, read-only commands unless explicitly asked to modify things.
   """,
     tools=[bash_tool, read_file_tool],
-    model="gpt-5.4-nano-2026-03-17",
+    model=EXAMPLE_MODEL,
     hooks=AgentHooks(;
         # Gate all bash commands — require approval before executing
         should_interrupt=(name, args) -> name == "bash",
@@ -120,7 +151,7 @@ http_agent = Agent(;
   a concise summary of the content.
   """,
     tools=[http_get_tool],
-    model="gpt-5.4-nano-2026-03-17",
+    model=EXAMPLE_MODEL,
 )
 
 result4 = run!(

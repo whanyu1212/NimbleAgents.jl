@@ -1,4 +1,3 @@
-import PromptingTools as PT
 
 @testset "Artifact construction" begin
     a = Artifact(
@@ -124,8 +123,8 @@ end
     store = JSONSessionStore(joinpath(tmpdir, "sessions"))
 
     s = Session(app_name="TestApp", user_id="test-user")
-    push!(s.history, PT.UserMessage("hello"))
-    push!(s.history, PT.AIMessage("hi there"))
+    push!(s.history, NimbleAgents.UserMessage("hello"))
+    push!(s.history, NimbleAgents.AIMessage("hi there"))
     s.state["score"] = 42
 
     save!(store, s)
@@ -140,9 +139,9 @@ end
     @test s2.app_name == "TestApp"
     @test s2.user_id == "test-user"
     @test length(s2.history) == 2
-    @test s2.history[1] isa PT.UserMessage
+    @test s2.history[1] isa NimbleAgents.UserMessage
     @test s2.history[1].content == "hello"
-    @test s2.history[2] isa PT.AIMessage
+    @test s2.history[2] isa NimbleAgents.AIMessage
     @test s2.history[2].content == "hi there"
     @test s2.state["score"] == 42
 
@@ -199,11 +198,13 @@ end
 end
 
 @testset "_msg_to_dict / _dict_to_msg roundtrip" begin
-    msgs = PT.AbstractMessage[
-        PT.UserMessage("hello"),
-        PT.AIMessage("world"),
-        PT.SystemMessage("you are a bot"),
-        PT.ToolMessage(content="result", name="my_tool", tool_call_id="tc1", raw="result"),  # raw required by PT
+    msgs = NimbleAgents.AbstractMessage[
+        NimbleAgents.UserMessage("hello"),
+        NimbleAgents.AIMessage("world"),
+        NimbleAgents.SystemMessage("you are a bot"),
+        NimbleAgents.ToolMessage(
+            content="result", name="my_tool", tool_call_id="tc1", raw="result"
+        ),  # raw required by PT
     ]
 
     for msg in msgs

@@ -5,6 +5,11 @@
 # should_interrupt or approval_channel in any production context.
 ###############################################################################
 
+"""
+    bash_tool
+
+Built-in `NimbleTool` that executes shell commands and returns combined output.
+"""
 const bash_tool = NimbleTool(;
     name="bash",
     description="""Run a shell command and return its output.

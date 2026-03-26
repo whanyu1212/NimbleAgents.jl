@@ -7,7 +7,8 @@
 #   3. spawn_subagents — Drafter → Editor sequential writing pipeline
 #   (bonus) sub_agents — TriageAgent wiring shown at the end
 #
-# Requires OPENAI_API_KEY and TAVILY_API_KEY in .env
+# Requires OPENAI_API_KEY or GOOGLE_API_KEY (GEMINI_API_KEY also works here),
+# plus TAVILY_API_KEY in .env
 #
 # Run from the project root:
 #   julia --project=. examples/research_pipeline.jl
@@ -21,6 +22,37 @@ using HTTP, JSON3
 import Term: Panel, tprintln
 import Term.Progress: ProgressBar, addjob!, update!, with
 import Term.Tables: Table
+
+function example_model(; tier::Symbol=:mini)
+    if isempty(get(ENV, "GOOGLE_API_KEY", "")) && !isempty(get(ENV, "GEMINI_API_KEY", ""))
+        ENV["GOOGLE_API_KEY"] = ENV["GEMINI_API_KEY"]
+    end
+
+    override = strip(get(ENV, "NIMBLEAGENTS_EXAMPLE_MODEL", ""))
+    !isempty(override) && return override
+
+    openai_model, gemini_model = if tier === :nano
+        ("gpt-5.4-nano-2026-03-17", "gemini-2.5-flash-lite")
+    else
+        ("gpt-5.4-mini", "gemini-2.5-flash")
+    end
+
+    provider = lowercase(strip(get(ENV, "NIMBLEAGENTS_EXAMPLE_PROVIDER", "")))
+    provider == "openai" && return openai_model
+    provider == "gemini" && return gemini_model
+    !isempty(provider) && error(
+        "Unsupported NIMBLEAGENTS_EXAMPLE_PROVIDER=$(provider). Use 'openai' or 'gemini'.",
+    )
+
+    !isempty(get(ENV, "OPENAI_API_KEY", "")) && return openai_model
+    !isempty(get(ENV, "GOOGLE_API_KEY", "")) && return gemini_model
+
+    error(
+        "Set OPENAI_API_KEY, GOOGLE_API_KEY, or GEMINI_API_KEY, or set NIMBLEAGENTS_EXAMPLE_MODEL.",
+    )
+end
+
+const EXAMPLE_MODEL = example_model()
 
 # ── Tavily search (advanced depth for richer results) ─────────────────────────
 
@@ -108,6 +140,7 @@ up-to-date results. Include relevant year (2024 or 2025), specific metrics or
 entities where applicable, and avoid generic terms. Reply with the query string only
 — no explanation, no quotes, no punctuation at the end.""",
     max_iterations=1,
+    model=EXAMPLE_MODEL,
     hooks=make_hooks("planner", "blue"),
 )
 
@@ -120,6 +153,7 @@ query. Call the search tool exactly once with that query, then write a concise
 the results.""",
     tools=[search_tool],
     max_iterations=3,
+    model=EXAMPLE_MODEL,
     hooks=make_hooks("researcher", "cyan"),
 )
 
@@ -128,6 +162,7 @@ drafter = Agent(;
     instructions="""You are a report writer. Given research summaries, write a
 well-structured report with an introduction, one section per sub-topic, and a
 conclusion. Use clear, professional prose. Aim for 400–600 words.""",
+    model=EXAMPLE_MODEL,
     hooks=make_hooks("drafter", "yellow"),
 )
 
@@ -136,6 +171,7 @@ editor = Agent(;
     instructions="""You are a professional editor. Improve clarity, flow, and
 conciseness of the given draft without changing facts or structure. Return the
 polished final report only — no commentary.""",
+    model=EXAMPLE_MODEL,
     hooks=make_hooks("editor", "magenta"),
 )
 
@@ -145,6 +181,7 @@ triage = Agent(;
     instructions="""You are a request router. Hand off research requests to
 TopicResearcher and writing requests to Drafter. Always hand off.""",
     sub_agents=[topic_researcher, drafter],
+    model=EXAMPLE_MODEL,
     hooks=make_hooks("triage", "red"),
 )
 

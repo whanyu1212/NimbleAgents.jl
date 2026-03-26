@@ -4,6 +4,11 @@
 
 using JSON3: JSON3
 
+"""
+    save_memory_tool
+
+Built-in `NimbleTool` that saves user facts/preferences into long-term memory.
+"""
 const save_memory_tool = NimbleTool(;
     name="save_memory",
     description="""Store a fact or preference in long-term memory for the current user.
@@ -60,6 +65,11 @@ The memory is scoped to the current user and application — it persists across 
     end,
 )
 
+"""
+    recall_memory_tool
+
+Built-in `NimbleTool` that retrieves relevant entries from long-term memory.
+"""
 const recall_memory_tool = NimbleTool(;
     name="recall_memory",
     description="""Search long-term memory for facts relevant to a query.

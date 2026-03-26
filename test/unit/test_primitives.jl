@@ -1,4 +1,3 @@
-import PromptingTools as PT
 
 @testset "sub_agents" begin
     child_a = Agent(name="ChildA", instructions="I am child A.")

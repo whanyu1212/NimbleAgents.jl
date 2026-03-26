@@ -326,7 +326,7 @@ For full control, pass a function that transforms the message vector:
 ```julia
 # Keep only user messages
 handoff_tool(billing; history_filter=HandoffFilter(
-    msgs -> filter(m -> m isa PT.UserMessage, msgs)
+    msgs -> filter(m -> m isa UserMessage, msgs)
 ))
 ```
 

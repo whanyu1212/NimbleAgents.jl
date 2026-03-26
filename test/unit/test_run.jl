@@ -1,37 +1,35 @@
 ###############################################################################
-# test_run.jl — unit tests for run! using Mocking.jl to stub PT.aitools
+# test_run.jl — unit tests for run! using the test patch shim in runtests.jl.
 #
-# Strategy: @patch PT.aitools to return canned PT.AbstractMessage vectors
-# so no real LLM call is made. Each test controls exactly what the fake LLM
-# "returns" to exercise specific code paths in run!.
-#
-# Requires: Mocking.activate() called before `using NimbleAgents` (in runtests.jl)
+# Strategy: @patch NimbleAgents.aitools/NimbleAgents.aiextract to return canned NimbleAgents.AbstractMessage
+# values so no real LLM call is made. Each test controls exactly what the fake
+# LLM "returns" to exercise specific code paths in run!.
 ###############################################################################
-
-import PromptingTools as PT
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 # Build a minimal AIMessage (plain text response, no tool calls)
-_ai_msg(text) = PT.AIMessage(; content=text, tokens=(10, 10), elapsed=0.1)
+_ai_msg(text) = NimbleAgents.AIMessage(; content=text, tokens=(10, 10), elapsed=0.1)
 
 # Build a fake tool request: LLM wants to call `tool_name` with `args`
 function _tool_request(tool_name::String, args::Dict; content="")
     # PT uses ToolMessage inside AIToolRequest.tool_calls
-    tm = PT.ToolMessage(;
+    tm = NimbleAgents.ToolMessage(;
         content=nothing,
         raw="",
         tool_call_id="call_$(tool_name)",
         name=tool_name,
         args=Dict{Symbol,Any}(Symbol(k) => v for (k, v) in args),
     )
-    PT.AIToolRequest(; tool_calls=[tm], content=content, tokens=(5, 5), elapsed=0.1)
+    NimbleAgents.AIToolRequest(;
+        tool_calls=[tm], content=content, tokens=(5, 5), elapsed=0.1
+    )
 end
 
 # ── Basic text response ───────────────────────────────────────────────────────
 
 @testset "run! — plain text response" begin
-    patch = @patch function PT.aitools(conv; kwargs...)
+    patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         push!(conv, _ai_msg("Hello back!"))
         conv
     end
@@ -49,7 +47,7 @@ end
 @testset "run! — dynamic instructions resolved from function" begin
     captured_system = Ref("")
 
-    patch = @patch function PT.aitools(conv; kwargs...)
+    patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         # Capture the system prompt that was passed to the LLM
         captured_system[] = conv[1].content
         push!(conv, _ai_msg("Got it!"))
@@ -71,7 +69,7 @@ end
 @testset "run! — dynamic instructions with nothing session" begin
     captured_system = Ref("")
 
-    patch = @patch function PT.aitools(conv; kwargs...)
+    patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         captured_system[] = conv[1].content
         push!(conv, _ai_msg("OK"))
         conv
@@ -92,7 +90,7 @@ end
 @testset "run! — api_kwargs passed through to LLM call" begin
     captured_kwargs = Dict{Symbol,Any}()
 
-    patch = @patch function PT.aitools(conv; kwargs...)
+    patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         merge!(captured_kwargs, Dict(kwargs))
         push!(conv, _ai_msg("Done"))
         conv
@@ -113,7 +111,7 @@ end
 end
 
 @testset "run! — empty api_kwargs does not break calls" begin
-    patch = @patch function PT.aitools(conv; kwargs...)
+    patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         push!(conv, _ai_msg("OK"))
         conv
     end
@@ -129,7 +127,7 @@ end
 # ── Session history updated ───────────────────────────────────────────────────
 
 @testset "run! — session history appended" begin
-    patch = @patch function PT.aitools(conv; kwargs...)
+    patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         push!(conv, _ai_msg("Hi there"))
         conv
     end
@@ -142,7 +140,7 @@ end
 
         # _save_history! saves messages after the seeded conversation,
         # so only the AIMessage is in history (UserMessage is part of the seed)
-        @test any(m isa PT.AIMessage for m in session.history)
+        @test any(m isa NimbleAgents.AIMessage for m in session.history)
         # event recorded
         @test length(session.events) == 1
         @test session.events[1] isa TurnEvent
@@ -154,7 +152,7 @@ end
 
 @testset "run! — session persists across calls" begin
     call_count = Ref(0)
-    patch = @patch function PT.aitools(conv; kwargs...)
+    patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         call_count[] += 1
         push!(conv, _ai_msg("response $(call_count[])"))
         conv
@@ -170,7 +168,7 @@ end
         # Two turns → 2 events
         @test length(session.events) == 2
         # History grows — each turn adds at least the AI response
-        ai_msgs = filter(m -> m isa PT.AIMessage, session.history)
+        ai_msgs = filter(m -> m isa NimbleAgents.AIMessage, session.history)
         @test length(ai_msgs) == 2
     end
 end
@@ -179,7 +177,7 @@ end
 
 @testset "run! — tool call executed and result fed back" begin
     call_count = Ref(0)
-    patch = @patch function PT.aitools(conv; kwargs...)
+    patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         call_count[] += 1
         if call_count[] == 1
             # First call: LLM requests a tool
@@ -209,7 +207,7 @@ end
 
 @testset "run! — tool events recorded in session" begin
     call_count = Ref(0)
-    patch = @patch function PT.aitools(conv; kwargs...)
+    patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         call_count[] += 1
         if call_count[] == 1
             push!(conv, _tool_request("greet_agent", Dict("name" => "Alice")))
@@ -241,7 +239,7 @@ end
 
 @testset "run! — return_direct skips second LLM call" begin
     call_count = Ref(0)
-    patch = @patch function PT.aitools(conv; kwargs...)
+    patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         call_count[] += 1
         push!(conv, _tool_request("cached_lookup", Dict("key" => "answer")))
         conv
@@ -264,7 +262,7 @@ end
 # ── on_complete hook fires ─────────────────────────────────────────────────────
 
 @testset "run! — on_complete hook fires with result" begin
-    patch = @patch function PT.aitools(conv; kwargs...)
+    patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         push!(conv, _ai_msg("done"))
         conv
     end
@@ -283,7 +281,7 @@ end
 
 @testset "run! — tool hooks fire in order" begin
     call_count = Ref(0)
-    patch = @patch function PT.aitools(conv; kwargs...)
+    patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         call_count[] += 1
         if call_count[] == 1
             push!(conv, _tool_request("echo_hook", Dict("msg" => "hi")))
@@ -315,7 +313,7 @@ end
 
 @testset "run! — tool errors are caught and fed back to LLM" begin
     call_count = Ref(0)
-    patch = @patch function PT.aitools(conv; kwargs...)
+    patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         call_count[] += 1
         if call_count[] == 1
             push!(conv, _tool_request("broken_tool", Dict("x" => 1)))
@@ -342,7 +340,7 @@ end
 # ── HumanInterrupt thrown when should_interrupt and no channel ────────────────
 
 @testset "run! — HumanInterrupt thrown without approval_channel" begin
-    patch = @patch function PT.aitools(conv; kwargs...)
+    patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         push!(conv, _tool_request("dangerous_op", Dict("path" => "/tmp/x")))
         conv
     end
@@ -366,7 +364,7 @@ end
 
 @testset "run! — approval_channel approve proceeds" begin
     call_count = Ref(0)
-    patch = @patch function PT.aitools(conv; kwargs...)
+    patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         call_count[] += 1
         if call_count[] == 1
             push!(conv, _tool_request("guarded_op", Dict("x" => 1)))
@@ -396,7 +394,7 @@ end
 # ── Session auto-persisted when store provided ────────────────────────────────
 
 @testset "run! — session auto-persisted to store" begin
-    patch = @patch function PT.aitools(conv; kwargs...)
+    patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         push!(conv, _ai_msg("saved"))
         conv
     end
@@ -421,12 +419,14 @@ struct ParseRetryReport
 end
 
 @testset "run! — structured output succeeds on first attempt" begin
-    aitools_patch = @patch function PT.aitools(conv; kwargs...)
+    aitools_patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         push!(conv, _ai_msg("done"))
         conv
     end
-    extract_patch = @patch function PT.aiextract(conv; return_type, kwargs...)
-        PT.DataMessage(; content=ParseRetryReport("ok", 10), tokens=(5, 5), elapsed=0.1)
+    extract_patch = @patch function NimbleAgents.aiextract(conv; return_type, kwargs...)
+        NimbleAgents.AIMessage(;
+            content=ParseRetryReport("ok", 10), tokens=(5, 5), elapsed=0.1
+        )
     end
 
     apply([aitools_patch, extract_patch]) do
@@ -439,18 +439,18 @@ end
 
 @testset "run! — structured output retries on parse failure then succeeds" begin
     attempt = Ref(0)
-    aitools_patch = @patch function PT.aitools(conv; kwargs...)
+    aitools_patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         push!(conv, _ai_msg("done"))
         conv
     end
-    extract_patch = @patch function PT.aiextract(conv; return_type, kwargs...)
+    extract_patch = @patch function NimbleAgents.aiextract(conv; return_type, kwargs...)
         attempt[] += 1
         if attempt[] < 2
             # First attempt: return nothing (parse failure)
-            PT.DataMessage(; content=nothing, tokens=(5, 5), elapsed=0.1)
+            NimbleAgents.AIMessage(; content=nothing, tokens=(5, 5), elapsed=0.1)
         else
             # Second attempt: return correct type
-            PT.DataMessage(;
+            NimbleAgents.AIMessage(;
                 content=ParseRetryReport("recovered", 99), tokens=(5, 5), elapsed=0.1
             )
         end
@@ -473,12 +473,12 @@ end
 end
 
 @testset "run! — structured output errors after exhausting parse retries" begin
-    aitools_patch = @patch function PT.aitools(conv; kwargs...)
+    aitools_patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         push!(conv, _ai_msg("done"))
         conv
     end
-    extract_patch = @patch function PT.aiextract(conv; return_type, kwargs...)
-        PT.DataMessage(; content=nothing, tokens=(5, 5), elapsed=0.1)
+    extract_patch = @patch function NimbleAgents.aiextract(conv; return_type, kwargs...)
+        NimbleAgents.AIMessage(; content=nothing, tokens=(5, 5), elapsed=0.1)
     end
 
     apply([aitools_patch, extract_patch]) do
@@ -495,12 +495,12 @@ end
 end
 
 @testset "run! — parse retries disabled with max_parse_retries=0" begin
-    aitools_patch = @patch function PT.aitools(conv; kwargs...)
+    aitools_patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         push!(conv, _ai_msg("done"))
         conv
     end
-    extract_patch = @patch function PT.aiextract(conv; return_type, kwargs...)
-        PT.DataMessage(; content=nothing, tokens=(5, 5), elapsed=0.1)
+    extract_patch = @patch function NimbleAgents.aiextract(conv; return_type, kwargs...)
+        NimbleAgents.AIMessage(; content=nothing, tokens=(5, 5), elapsed=0.1)
     end
 
     apply([aitools_patch, extract_patch]) do
@@ -521,7 +521,7 @@ end
 @testset "run! — max_iterations fallback returns last AI content" begin
     # Always return a tool request so the loop never terminates naturally
     call_count = Ref(0)
-    patch = @patch function PT.aitools(conv; kwargs...)
+    patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         call_count[] += 1
         push!(conv, _tool_request("inf_tool", Dict("x" => call_count[])))
         conv

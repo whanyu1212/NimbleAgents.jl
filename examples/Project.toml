@@ -1,0 +1,14 @@
+[deps]
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+DotEnv = "4dc1fcf4-5e3b-5448-94ab-0c38ec0385c1"
+HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
+JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+NimbleAgents = "b3b452bc-e432-4d72-a849-326f027585f4"
+Term = "22787eb5-b846-44ae-b979-8e399b8463ab"
+
+[compat]
+DotEnv = "1"
+HTTP = "1"
+JSON3 = "1"
+NimbleAgents = "0.1"
+Term = "2"

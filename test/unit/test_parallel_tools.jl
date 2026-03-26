@@ -1,19 +1,17 @@
 ###############################################################################
 # test_parallel_tools.jl — unit tests for parallel tool execution in run!
 #
-# Uses Mocking.jl to stub PT.aitools, same strategy as test_run.jl.
+# Uses the test patch shim to stub NimbleAgents.aitools, same strategy as test_run.jl.
 # Tools defined at module scope (runtests.jl) to avoid closure mangling.
 ###############################################################################
 
-import PromptingTools as PT
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-_ai_msg_p(text) = PT.AIMessage(; content=text, tokens=(10, 10), elapsed=0.1)
+_ai_msg_p(text) = NimbleAgents.AIMessage(; content=text, tokens=(10, 10), elapsed=0.1)
 
 function _multi_tool_request(calls::Vector{<:Pair{String}})
     tms = [
-        PT.ToolMessage(;
+        NimbleAgents.ToolMessage(;
             content=nothing,
             raw="",
             tool_call_id="call_$(name)_$(i)",
@@ -21,7 +19,7 @@ function _multi_tool_request(calls::Vector{<:Pair{String}})
             args=Dict{Symbol,Any}(Symbol(k) => v for (k, v) in args),
         ) for (i, (name, args)) in enumerate(calls)
     ]
-    PT.AIToolRequest(; tool_calls=tms, content="", tokens=(5, 5), elapsed=0.1)
+    NimbleAgents.AIToolRequest(; tool_calls=tms, content="", tokens=(5, 5), elapsed=0.1)
 end
 
 # Tool fixtures (par_add_tool, par_single_tool, etc.) are defined in runtests.jl
@@ -31,7 +29,7 @@ end
 
 @testset "run! — multiple tools execute in parallel" begin
     call_count = Ref(0)
-    patch = @patch function PT.aitools(conv; kwargs...)
+    patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         call_count[] += 1
         if call_count[] == 1
             push!(
@@ -68,7 +66,7 @@ end
 
 @testset "run! — single tool call stays sequential" begin
     call_count = Ref(0)
-    patch = @patch function PT.aitools(conv; kwargs...)
+    patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         call_count[] += 1
         if call_count[] == 1
             push!(conv, _multi_tool_request(["par_single" => Dict("x" => 5)]))
@@ -89,7 +87,7 @@ end
 
 @testset "run! — return_direct tool forces sequential execution" begin
     call_count = Ref(0)
-    patch = @patch function PT.aitools(conv; kwargs...)
+    patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         call_count[] += 1
         push!(
             conv,
@@ -117,7 +115,7 @@ end
 
 @testset "run! — sub_agents present forces sequential execution" begin
     call_count = Ref(0)
-    patch = @patch function PT.aitools(conv; kwargs...)
+    patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         call_count[] += 1
         if call_count[] == 1
             push!(
@@ -154,7 +152,7 @@ end
 
 @testset "run! — parallel tool error is caught" begin
     call_count = Ref(0)
-    patch = @patch function PT.aitools(conv; kwargs...)
+    patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         call_count[] += 1
         if call_count[] == 1
             push!(
@@ -188,7 +186,7 @@ end
 
 @testset "run! — tool hooks fire during parallel execution" begin
     call_count = Ref(0)
-    patch = @patch function PT.aitools(conv; kwargs...)
+    patch = @patch function NimbleAgents.aitools(conv; kwargs...)
         call_count[] += 1
         if call_count[] == 1
             push!(

@@ -1,5 +1,6 @@
 using Documenter, DocumenterVitepress
 using NimbleAgents
+using SQLite
 
 makedocs(;
     modules=[NimbleAgents],
@@ -11,6 +12,8 @@ makedocs(;
         devbranch="develop",
         devurl="dev",
     ),
+    doctest=true,
+    checkdocs=:exports,
     draft=false,
     source="src",
     build="build",

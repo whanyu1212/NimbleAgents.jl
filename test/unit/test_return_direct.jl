@@ -19,15 +19,13 @@ end
     @test NimbleAgents._is_return_direct(rd_direct_tool) == true
     @test NimbleAgents._is_return_direct(rd_normal_tool) == false
 
-    # PT.Tool (third-party tools) always returns false
-    import PromptingTools as PT
-    pt_tool = PT.Tool(;
-        name="pt",
+    basic_tool = NimbleAgents.BasicTool(;
+        name="basic",
         parameters=Dict{String,Any}("type"=>"object", "properties"=>Dict()),
-        description="A PT tool",
+        description="A basic tool",
         callable=identity,
     )
-    @test NimbleAgents._is_return_direct(pt_tool) == false
+    @test NimbleAgents._is_return_direct(basic_tool) == false
 end
 
 @testset "return_direct — build_tool_map includes NimbleTool" begin

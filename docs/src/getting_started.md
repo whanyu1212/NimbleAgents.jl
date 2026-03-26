@@ -6,7 +6,7 @@ CurrentModule = NimbleAgents
 
 ## Prerequisites
 
-You need an API key for a supported LLM provider. NimbleAgents uses [PromptingTools.jl](https://github.com/svilupp/PromptingTools.jl) under the hood, which supports OpenAI, Anthropic, Google, Ollama, and more.
+You need an API key for a supported LLM provider. NimbleAgents currently ships native support for OpenAI (`OPENAI_API_KEY`) and Google Gemini (`GOOGLE_API_KEY`).
 
 Set your API key as an environment variable:
 
@@ -53,6 +53,62 @@ println(result)  # "Hello, Alice! Nice to meet you."
 The `@tool` macro creates two things:
 1. A normal Julia function `greet(name)` you can call directly
 2. A `NimbleTool` object `greet_tool` with auto-generated JSON schema for the LLM
+
+## Deterministic Doctested Examples
+
+These examples are fully local and run during documentation doctests.
+
+```jldoctest tool_dispatch_smoke
+julia> using NimbleAgents
+
+julia> @tool function add_docs(x::Int, y::Int)
+           "Add two integers."
+           x + y
+       end;
+
+julia> tool_map = build_tool_map([add_docs_tool]);
+
+julia> dispatch_tool(tool_map, "add_docs", Dict(:x => 2, :y => 3))
+5
+```
+
+```jldoctest session_state_smoke
+julia> using NimbleAgents
+
+julia> session = Session(app_name="Docs", user_id="alice");
+
+julia> length(session)
+0
+
+julia> session.state["topic"] = "agents"; session.state["topic"]
+"agents"
+
+julia> reset!(session) === session
+true
+
+julia> length(session)
+0
+
+julia> isempty(session.state)
+true
+```
+
+```jldoctest trace_smoke
+julia> using NimbleAgents
+
+julia> turn = TurnEvent("DocsBot", "mock-model", "hello");
+
+julia> turn.output = "hi"; turn.input_tokens = 5; turn.output_tokens = 2;
+
+julia> session = Session(app_name="Docs", user_id="alice");
+
+julia> push!(session.events, turn);
+
+julia> trace = Trace(session);
+
+julia> trace.total_tokens
+7
+```
 
 ## Adding Session Memory
 

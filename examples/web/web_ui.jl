@@ -3,7 +3,7 @@
 # Launch the NimbleAgents web UI with a few demo agents.
 #
 # Requires:
-#   OPENAI_API_KEY  — for the LLM
+#   OPENAI_API_KEY or GOOGLE_API_KEY (GEMINI_API_KEY also works here) — for the LLM
 #   TAVILY_API_KEY  — for real web search (https://tavily.com)
 #
 # Run from the repo root (multiple threads required for background agent tasks):
@@ -18,6 +18,37 @@ using NimbleAgents
 using HTTP: HTTP
 using JSON3: JSON3
 using Dates: Dates
+
+function example_model(; tier::Symbol=:mini)
+    if isempty(get(ENV, "GOOGLE_API_KEY", "")) && !isempty(get(ENV, "GEMINI_API_KEY", ""))
+        ENV["GOOGLE_API_KEY"] = ENV["GEMINI_API_KEY"]
+    end
+
+    override = strip(get(ENV, "NIMBLEAGENTS_EXAMPLE_MODEL", ""))
+    !isempty(override) && return override
+
+    openai_model, gemini_model = if tier === :nano
+        ("gpt-5.4-nano-2026-03-17", "gemini-2.5-flash-lite")
+    else
+        ("gpt-5.4-mini", "gemini-2.5-flash")
+    end
+
+    provider = lowercase(strip(get(ENV, "NIMBLEAGENTS_EXAMPLE_PROVIDER", "")))
+    provider == "openai" && return openai_model
+    provider == "gemini" && return gemini_model
+    !isempty(provider) && error(
+        "Unsupported NIMBLEAGENTS_EXAMPLE_PROVIDER=$(provider). Use 'openai' or 'gemini'.",
+    )
+
+    !isempty(get(ENV, "OPENAI_API_KEY", "")) && return openai_model
+    !isempty(get(ENV, "GOOGLE_API_KEY", "")) && return gemini_model
+
+    error(
+        "Set OPENAI_API_KEY, GOOGLE_API_KEY, or GEMINI_API_KEY, or set NIMBLEAGENTS_EXAMPLE_MODEL.",
+    )
+end
+
+const EXAMPLE_MODEL = example_model()
 
 # ── Tools ─────────────────────────────────────────────────────────────────────
 
@@ -71,7 +102,7 @@ end
 chat_agent = Agent(;
     name="ChatBot",
     instructions="You are a helpful assistant. Answer questions clearly and concisely.",
-    model="gpt-5.4-mini",
+    model=EXAMPLE_MODEL,
 )
 
 # Research agent — real web search via Tavily
@@ -94,7 +125,7 @@ research_agent = Agent(;
   fabricated. Synthesize across sources rather than reproducing content verbatim.
   """,
     tools=[search_web_tool, fetch_webpage_tool, github_trending_tool],
-    model="gpt-5.4-mini",
+    model=EXAMPLE_MODEL,
 )
 
 # Filesystem agent — reads and explores files on disk (HITL before writes)
@@ -105,7 +136,7 @@ fs_agent = Agent(;
   and search for content. Always show the user what you find.
   """,
     tools=[read_file_tool, list_dir_tool, glob_tool, grep_tool],
-    model="gpt-5.4-mini",
+    model=EXAMPLE_MODEL,
 )
 
 # Support agent — demonstrates return_direct: FAQ hits bypass the LLM entirely
@@ -117,7 +148,7 @@ support_agent = Agent(;
   processing. For anything else, use search_web.
   """,
     tools=[lookup_faq_tool, search_web_tool],
-    model="gpt-5.4-mini",
+    model=EXAMPLE_MODEL,
 )
 
 # ── Launch ────────────────────────────────────────────────────────────────────

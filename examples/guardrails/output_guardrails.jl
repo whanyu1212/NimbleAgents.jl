@@ -14,7 +14,41 @@
 # Run from the repo root:
 #   julia --project examples/guardrails/output_guardrails.jl
 
+using DotEnv
+DotEnv.load!()
+
 using NimbleAgents
+
+function example_model(; tier::Symbol=:mini)
+    if isempty(get(ENV, "GOOGLE_API_KEY", "")) && !isempty(get(ENV, "GEMINI_API_KEY", ""))
+        ENV["GOOGLE_API_KEY"] = ENV["GEMINI_API_KEY"]
+    end
+
+    override = strip(get(ENV, "NIMBLEAGENTS_EXAMPLE_MODEL", ""))
+    !isempty(override) && return override
+
+    openai_model, gemini_model = if tier === :nano
+        ("gpt-5.4-nano-2026-03-17", "gemini-2.5-flash-lite")
+    else
+        ("gpt-5.4-mini", "gemini-2.5-flash")
+    end
+
+    provider = lowercase(strip(get(ENV, "NIMBLEAGENTS_EXAMPLE_PROVIDER", "")))
+    provider == "openai" && return openai_model
+    provider == "gemini" && return gemini_model
+    !isempty(provider) && error(
+        "Unsupported NIMBLEAGENTS_EXAMPLE_PROVIDER=$(provider). Use 'openai' or 'gemini'.",
+    )
+
+    !isempty(get(ENV, "OPENAI_API_KEY", "")) && return openai_model
+    !isempty(get(ENV, "GOOGLE_API_KEY", "")) && return gemini_model
+
+    error(
+        "Set OPENAI_API_KEY, GOOGLE_API_KEY, or GEMINI_API_KEY, or set NIMBLEAGENTS_EXAMPLE_MODEL.",
+    )
+end
+
+const EXAMPLE_MODEL = example_model()
 
 # ── Pattern 1: Block responses containing external links ─────────────────────
 
@@ -32,6 +66,7 @@ agent = Agent(;
     name="NoLinkBot",
     instructions="You are a helpful assistant. Never include URLs in responses.",
     guardrails=[no_links],
+    model=EXAMPLE_MODEL,
 )
 
 println("=== Pattern 1: Block output with links ===")
@@ -40,7 +75,7 @@ dummy_response = "Check out https://example.com for more info."
 result = NimbleAgents._apply_output_guardrails(
     dummy_response,
     agent,
-    NimbleAgents.TurnEvent("NoLinkBot", "gpt-5.4-mini", "test"),
+    NimbleAgents.TurnEvent("NoLinkBot", String(EXAMPLE_MODEL), "test"),
     time(),
     nothing,
     [],
@@ -65,6 +100,7 @@ agent2 = Agent(;
     name="TruncateBot",
     instructions="You are a helpful assistant.",
     guardrails=[truncate_output],
+    model=EXAMPLE_MODEL,
 )
 
 println("\n=== Pattern 2: Modify — truncate long output ===")
@@ -72,7 +108,7 @@ long_response = "A" ^ 300
 result2 = NimbleAgents._apply_output_guardrails(
     long_response,
     agent2,
-    NimbleAgents.TurnEvent("TruncateBot", "gpt-5.4-mini", "test"),
+    NimbleAgents.TurnEvent("TruncateBot", String(EXAMPLE_MODEL), "test"),
     time(),
     nothing,
     [],
@@ -107,6 +143,7 @@ agent3 = Agent(;
     name="FullGuardBot",
     instructions="You are a helpful assistant.",
     guardrails=[no_ssn_input, no_ssn_output],
+    model=EXAMPLE_MODEL,
 )
 
 println("\n=== Pattern 3: Input + output guardrails ===")

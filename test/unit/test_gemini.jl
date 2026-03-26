@@ -2,12 +2,10 @@
 # test_gemini.jl — unit tests for GeminiOpenAISchema
 ###############################################################################
 
-import PromptingTools as PT
-
 @testset "GeminiOpenAISchema — type hierarchy" begin
     schema = GeminiOpenAISchema()
-    @test schema isa PT.AbstractOpenAISchema
-    @test schema isa PT.AbstractPromptSchema
+    @test schema isa NimbleAgents.AbstractOpenAISchema
+    @test schema isa NimbleAgents.AbstractPromptSchema
 end
 
 @testset "GeminiOpenAISchema — model registry" begin
@@ -19,8 +17,8 @@ end
         "gemini-3-flash-preview",
         "gemini-1.5-pro",
     ]
-        @test haskey(PT.MODEL_REGISTRY, model)
-        spec = PT.MODEL_REGISTRY[model]
+        @test haskey(NimbleAgents.MODEL_REGISTRY, model)
+        spec = NimbleAgents.MODEL_REGISTRY[model]
         @test spec.schema isa GeminiOpenAISchema
     end
 end
@@ -35,8 +33,10 @@ end
 
 @testset "GeminiOpenAISchema — message rendering inherits from AbstractOpenAISchema" begin
     schema = GeminiOpenAISchema()
-    msgs = PT.AbstractMessage[PT.SystemMessage("You are helpful."), PT.UserMessage("Hello")]
-    rendered = PT.render(schema, msgs)
+    msgs = NimbleAgents.AbstractMessage[
+        NimbleAgents.SystemMessage("You are helpful."), NimbleAgents.UserMessage("Hello")
+    ]
+    rendered = NimbleAgents.render(schema, msgs)
     @test length(rendered) == 2
     @test rendered[1]["role"] == "system"
     @test rendered[1]["content"] == "You are helpful."
@@ -59,7 +59,7 @@ end
         ),
         callable=(x::Int) -> x * 2,
     )
-    rendered = PT.render(schema, [tool])
+    rendered = NimbleAgents.render(schema, [tool])
     @test length(rendered) == 1
     @test rendered[1][:type] == "function"
     @test rendered[1][:function][:name] == "test_tool"

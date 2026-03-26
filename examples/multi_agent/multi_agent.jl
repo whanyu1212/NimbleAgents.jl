@@ -13,6 +13,37 @@ DotEnv.load!()
 
 using NimbleAgents
 
+function example_model(; tier::Symbol=:mini)
+    if isempty(get(ENV, "GOOGLE_API_KEY", "")) && !isempty(get(ENV, "GEMINI_API_KEY", ""))
+        ENV["GOOGLE_API_KEY"] = ENV["GEMINI_API_KEY"]
+    end
+
+    override = strip(get(ENV, "NIMBLEAGENTS_EXAMPLE_MODEL", ""))
+    !isempty(override) && return override
+
+    openai_model, gemini_model = if tier === :nano
+        ("gpt-5.4-nano-2026-03-17", "gemini-2.5-flash-lite")
+    else
+        ("gpt-5.4-mini", "gemini-2.5-flash")
+    end
+
+    provider = lowercase(strip(get(ENV, "NIMBLEAGENTS_EXAMPLE_PROVIDER", "")))
+    provider == "openai" && return openai_model
+    provider == "gemini" && return gemini_model
+    !isempty(provider) && error(
+        "Unsupported NIMBLEAGENTS_EXAMPLE_PROVIDER=$(provider). Use 'openai' or 'gemini'.",
+    )
+
+    !isempty(get(ENV, "OPENAI_API_KEY", "")) && return openai_model
+    !isempty(get(ENV, "GOOGLE_API_KEY", "")) && return gemini_model
+
+    error(
+        "Set OPENAI_API_KEY, GOOGLE_API_KEY, or GEMINI_API_KEY, or set NIMBLEAGENTS_EXAMPLE_MODEL.",
+    )
+end
+
+const EXAMPLE_MODEL = example_model()
+
 divider(c='─', n=60) = println(c ^ n)
 
 # ── Shared tools ───────────────────────────────────────────────────────────────
@@ -61,6 +92,7 @@ math_agent = Agent(;
     name="MathAgent",
     instructions="You are a math specialist. Always use tools to compute answers.",
     tools=[add_tool, multiply_tool],
+    model=EXAMPLE_MODEL,
     hooks=math_hooks,
 )
 
@@ -68,6 +100,7 @@ text_agent = Agent(;
     name="TextAgent",
     instructions="You are a text processing specialist. Use tools for all text operations.",
     tools=[word_count_tool, reverse_words_tool],
+    model=EXAMPLE_MODEL,
     hooks=text_hooks,
 )
 
@@ -83,6 +116,7 @@ Never answer directly — always delegate.""",
         agent_as_tool(math_agent; session=session),
         agent_as_tool(text_agent; session=session),
     ],
+    model=EXAMPLE_MODEL,
 )
 
 questions = [
@@ -119,12 +153,14 @@ billing_agent = Agent(;
     name="BillingAgent",
     instructions="You handle billing and payment questions. Be concise and direct.",
     tools=Tool[],
+    model=EXAMPLE_MODEL,
 )
 
 tech_agent = Agent(;
     name="TechAgent",
     instructions="You handle technical support questions. Be concise and direct.",
     tools=Tool[],
+    model=EXAMPLE_MODEL,
 )
 
 triage_agent = Agent(;
@@ -135,6 +171,7 @@ Route every incoming request to the correct specialist using handoff tools.
 - Technical questions (bugs, errors, setup, features) → TechAgent
 Always hand off — never answer directly.""",
     tools=[handoff_tool(billing_agent), handoff_tool(tech_agent)],
+    model=EXAMPLE_MODEL,
 )
 
 pipeline_session = Session(; app_name="PipelineDemo")

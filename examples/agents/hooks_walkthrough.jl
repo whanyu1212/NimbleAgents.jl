@@ -10,6 +10,37 @@ DotEnv.load!()
 
 using NimbleAgents
 
+function example_model(; tier::Symbol=:mini)
+    if isempty(get(ENV, "GOOGLE_API_KEY", "")) && !isempty(get(ENV, "GEMINI_API_KEY", ""))
+        ENV["GOOGLE_API_KEY"] = ENV["GEMINI_API_KEY"]
+    end
+
+    override = strip(get(ENV, "NIMBLEAGENTS_EXAMPLE_MODEL", ""))
+    !isempty(override) && return override
+
+    openai_model, gemini_model = if tier === :nano
+        ("gpt-5.4-nano-2026-03-17", "gemini-2.5-flash-lite")
+    else
+        ("gpt-5.4-mini", "gemini-2.5-flash")
+    end
+
+    provider = lowercase(strip(get(ENV, "NIMBLEAGENTS_EXAMPLE_PROVIDER", "")))
+    provider == "openai" && return openai_model
+    provider == "gemini" && return gemini_model
+    !isempty(provider) && error(
+        "Unsupported NIMBLEAGENTS_EXAMPLE_PROVIDER=$(provider). Use 'openai' or 'gemini'.",
+    )
+
+    !isempty(get(ENV, "OPENAI_API_KEY", "")) && return openai_model
+    !isempty(get(ENV, "GOOGLE_API_KEY", "")) && return gemini_model
+
+    error(
+        "Set OPENAI_API_KEY, GOOGLE_API_KEY, or GEMINI_API_KEY, or set NIMBLEAGENTS_EXAMPLE_MODEL.",
+    )
+end
+
+const EXAMPLE_MODEL = example_model()
+
 # ── Tools ─────────────────────────────────────────────────────────────────────
 
 @tool function add(x::Int, y::Int)
@@ -53,12 +84,12 @@ hooks = AgentHooks(;
     after_llm_call=(agent, iteration, response) -> begin
         println("  [after_llm_call] #$(iteration)")
         println("     type          : $(nameof(typeof(response)))")
-        println("     finish_reason : $(something(response.finish_reason, "—"))")
+        println("     finish_reason : $(get(response.extras, :finish_reason, "—"))")
         usage = response.usage
         if !isnothing(usage)
             println("     tokens in/out : $(usage.input_tokens) / $(usage.output_tokens)")
         end
-        if response isa NimbleAgents.PT.AIToolRequest && !isempty(response.tool_calls)
+        if response isa NimbleAgents.AIToolRequest && !isempty(response.tool_calls)
             println(
                 "     tool_calls    : $(join([tc.name for tc in response.tool_calls], ", "))",
             )
@@ -92,6 +123,7 @@ agent = Agent(;
     instructions="""You are a precise math assistant. Always use the available
 tools to compute answers — never calculate in your head.""",
     tools=[add_tool, multiply_tool, factorial_tool],
+    model=EXAMPLE_MODEL,
     hooks=hooks,
 )
 

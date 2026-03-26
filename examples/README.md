@@ -3,7 +3,19 @@
 Examples are grouped by topic. Each file is self-contained and can be run from the repo root:
 
 ```bash
-julia --project examples/<category>/<file>.jl
+julia --project=examples examples/<category>/<file>.jl
+```
+
+LLM-calling examples support OpenAI and Gemini. By default they:
+- use `OPENAI_API_KEY` when it is set
+- otherwise use `GOOGLE_API_KEY`
+- also accept `GEMINI_API_KEY` as an examples-level alias for `GOOGLE_API_KEY`
+
+You can force a provider or model per run:
+
+```bash
+NIMBLEAGENTS_EXAMPLE_PROVIDER=gemini julia --project examples/agents/streaming.jl
+NIMBLEAGENTS_EXAMPLE_MODEL=gemini-2.5-flash julia --project examples/agents/streaming.jl
 ```
 
 ---
@@ -47,6 +59,8 @@ Coordination patterns across multiple agents.
 | `research_pipeline.jl` | Full pipeline using all three primitives: `spawn_subagents`, `fan_out`, and `run_pipeline!` with handoffs |
 | `claude_code_agent.jl` | `ExternalAgentTool` — delegate coding tasks to Claude Code (subprocess) with real-time progress streaming |
 
+`claude_code_agent.jl` is an external CLI integration example. It does not use the built-in OpenAI/Gemini provider routing used by the other LLM examples.
+
 ---
 
 ## human_in_the_loop/
@@ -77,7 +91,7 @@ Serving agents over HTTP.
 |---|---|
 | `web_ui.jl` | Launch the built-in web UI with `serve(agent)` — exposes an OpenAI-compatible chat API and a browser interface |
 
-> Requires multiple threads: `julia --project -t 2 examples/web/web_ui.jl`
+> Requires multiple threads: `julia --project=examples -t 2 examples/web/web_ui.jl`
 
 ---
 

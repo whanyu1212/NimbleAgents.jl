@@ -58,10 +58,23 @@ When history exceeds 80% of the context window, older messages are summarized in
 
 Sessions live in-process memory. Fast, but lost on restart. This is the default for `serve()`.
 
-```julia
-store = InMemorySessionStore()
-save!(store, session)
-loaded = load(store, session.id)   # returns the same object
+```jldoctest in_memory_store_smoke
+julia> using NimbleAgents
+
+julia> session = Session(app_name="Docs", user_id="alice");
+
+julia> store = InMemorySessionStore();
+
+julia> save!(store, session);
+
+julia> load(store, session.id) isa Session
+true
+
+julia> list(store; app_name="Docs", user_id="alice") == [session.id]
+true
+
+julia> delete!(store, session.id); isempty(list(store))
+true
 ```
 
 ### JSONSessionStore
@@ -98,6 +111,9 @@ delete!(store, session.id)
 Persist sessions in a single SQLite database file:
 
 ```julia
+using SQLite
+using NimbleAgents
+
 store = SQLiteSessionStore("sessions.db")
 save!(store, session)
 
@@ -109,6 +125,8 @@ close!(store)
 ```
 
 SQLiteSessionStore supports the same `list`, `delete!`, and filtering APIs as JSONSessionStore.
+`SQLiteSessionStore` is loaded via a package extension, so ensure your environment has
+`SQLite.jl` and `DBInterface.jl` installed.
 
 ## Web UI (Experimental)
 
@@ -156,6 +174,7 @@ By default, sessions live in memory and are lost when the server stops. Pass a s
 serve([agent]; port=8080, store=JSONSessionStore("./sessions"))
 
 # Or use SQLite
+using SQLite
 serve([agent]; port=8080, store=SQLiteSessionStore("sessions.db"))
 ```
 

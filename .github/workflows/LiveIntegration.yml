@@ -1,0 +1,38 @@
+name: Live Integration
+
+on:
+  schedule:
+    - cron: '0 3 * * 1' # weekly, Monday 03:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  live-tests:
+    name: Live Provider Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      actions: write
+      contents: read
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+      NIMBLEAGENTS_RUN_LIVE_TESTS: "true"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.12'
+      - uses: julia-actions/cache@v3
+      - name: Validate live test credentials
+        run: |
+          if [ -z "${OPENAI_API_KEY}" ] && [ -z "${GOOGLE_API_KEY}" ]; then
+            echo "No live provider API key configured (OPENAI_API_KEY or GOOGLE_API_KEY required)."
+            exit 1
+          fi
+      - uses: julia-actions/julia-buildpkg@v1
+      - uses: julia-actions/julia-runtest@v1
+

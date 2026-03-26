@@ -180,7 +180,7 @@ Rate limiting is especially useful with [`fan_out`](@ref), [`spawn_subagents`](@
 
 ## Cost Tracking
 
-NimbleAgents automatically tracks estimated USD cost per turn when model pricing is registered. Default pricing is included for popular OpenAI, Anthropic, and Google models.
+NimbleAgents automatically tracks estimated USD cost per turn when model pricing is registered. Default pricing is included for popular OpenAI and Google models, and the registry can be extended or overridden manually.
 
 ```julia
 # Check cost after a run
@@ -295,7 +295,7 @@ When `session` is `nothing` (no session passed to `run!`), the function still re
 
 ## Extended Thinking & Reasoning
 
-The `api_kwargs` field on `Agent` passes extra keyword arguments through to every PromptingTools LLM call (`aitools`, `aigenerate`, `aiextract`). This enables model-specific features like reasoning configuration.
+The `api_kwargs` field on `Agent` passes extra keyword arguments through to NimbleAgents' internal LLM calls. This enables model-specific features like reasoning configuration.
 
 ### OpenAI Reasoning (works today)
 
@@ -327,7 +327,7 @@ Reasoning tokens and reasoning content are captured in `extras[:reasoning_conten
 
 ### Other api_kwargs Uses
 
-`api_kwargs` works for any parameter that PromptingTools passes through to the LLM API:
+`api_kwargs` works for request parameters that the active provider accepts:
 
 ```julia
 # Temperature and top_p
@@ -347,20 +347,13 @@ agent = Agent(
 )
 ```
 
-### Anthropic Extended Thinking (limited support)
+### Anthropic
 
-!!! warning "Current Limitation"
-    Anthropic extended thinking is **not fully supported** due to PromptingTools.jl limitations:
-
-    1. **Beta header blocked** — PT's Anthropic integration whitelists allowed beta headers. The required `interleaved-thinking-2025-05-14` header is not in the whitelist, so PT rejects it.
-    2. **Thinking blocks discarded** — PT's response parser extracts only `:text` content blocks. Thinking blocks (which use a `:thinking` key) are silently dropped and never surfaced to the caller.
-    3. **No raw response access** — PT returns parsed `AIMessage`/`AIToolRequest` objects, not the raw API response, so there is no way to retrieve thinking content after the fact.
-
-    This will be resolved when PromptingTools.jl adds native extended thinking support. Track upstream progress for updates.
+Anthropic support is not implemented yet. The built-in provider layer currently targets OpenAI and Gemini.
 
 ### Google Gemini
 
-NimbleAgents includes `GeminiOpenAISchema` — a custom schema that calls the Gemini API via Google's [OpenAI-compatible endpoint](https://ai.google.dev/gemini-api/docs/openai). All Gemini models (`gemini-*`) are automatically routed through this schema.
+NimbleAgents routes Gemini models through Google's [OpenAI-compatible endpoint](https://ai.google.dev/gemini-api/docs/openai). All Gemini models (`gemini-*`) are automatically routed through this path.
 
 ```julia
 # Just set model to any gemini-* model — it works out of the box
@@ -393,15 +386,8 @@ Valid values: `"none"`, `"minimal"`, `"low"`, `"medium"`, `"high"`.
 
 Requires `GOOGLE_API_KEY` in your `.env` file or environment.
 
-!!! note "Why GeminiOpenAISchema exists"
-    PromptingTools.jl (v0.91.0) has a built-in `GoogleOpenAISchema`, but it has two bugs that prevent actual use:
-
-    1. **Wrong base URL** — PT sends requests to `/v1beta/chat/completions` instead of `/v1beta/openai/chat/completions`. All requests 404.
-    2. **No streaming** — PT's `GoogleOpenAISchema` does not forward the `streamcallback` parameter, so streaming always fails.
-
-    `GeminiOpenAISchema` fixes both by overriding a single method (`OpenAI.create_chat`) with the correct URL and streaming support. Everything else — message rendering, tool calling, structured output, response parsing — is inherited from PT's `AbstractOpenAISchema`.
-
-    This workaround will be removed once PromptingTools.jl fixes `GoogleOpenAISchema` upstream.
+!!! note
+    `GeminiOpenAISchema` is an internal marker type used for Gemini routing in NimbleAgents' OpenAI-compatible provider layer.
 
 ## Multi-Agent Handoffs
 

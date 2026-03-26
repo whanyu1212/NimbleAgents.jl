@@ -1,51 +1,50 @@
+using Test
 using DotEnv
-DotEnv.load!()
-
 using NimbleAgents
 
-# ── Define some simple tools ──────────────────────────────────────────────────
+DotEnv.load!()
 
-@tool function add(x::Int, y::Int)
-    "Add two integers together."
-    x + y
-end
+@testset "Live agent run! integration" begin
+    has_openai = !isempty(get(ENV, "OPENAI_API_KEY", ""))
+    has_google = !isempty(get(ENV, "GOOGLE_API_KEY", ""))
 
-@tool function multiply(x::Int, y::Int)
-    "Multiply two integers together."
-    x * y
-end
+    if !(has_openai || has_google)
+        @test_skip "Skipping live integration: set OPENAI_API_KEY or GOOGLE_API_KEY."
+        return nothing
+    end
 
-@tool function to_uppercase(text::String)
-    "Convert a string to uppercase."
-    uppercase(text)
-end
+    @tool function add(x::Int, y::Int)
+        "Add two integers together."
+        x + y
+    end
 
-# ── Build the agent ───────────────────────────────────────────────────────────
+    @tool function multiply(x::Int, y::Int)
+        "Multiply two integers together."
+        x * y
+    end
 
-agent = Agent(;
-    name="MathBot",
-    instructions="""You are a helpful assistant that can do arithmetic and string operations.
+    @tool function to_uppercase(text::String)
+        "Convert a string to uppercase."
+        uppercase(text)
+    end
+
+    model = has_openai ? "gpt-5.4-mini" : "gemini-2.5-flash"
+    agent = Agent(;
+        name="MathBot",
+        model=model,
+        instructions="""You are a helpful assistant that can do arithmetic and string operations.
 Always use tools to compute answers rather than doing the math yourself.""",
-    tools=[add_tool, multiply_tool, to_uppercase_tool],
-)
+        tools=[add_tool, multiply_tool, to_uppercase_tool],
+    )
 
-println("=" ^ 60)
-println("Agent: $(agent.name)")
-println("Model: $(agent.model)")
-println("Tools: $(join([t.name for t in agent.tools], ", "))")
-println("=" ^ 60)
+    prompts = [
+        "What is 12 + 7?",
+        "What is (3 + 5) * 10? Then convert the word 'result' to uppercase.",
+    ]
 
-# ── Run 3 conversations ───────────────────────────────────────────────────────
-
-prompts = [
-    "What is 12 + 7?",
-    "What is 6 multiplied by 9, and then add 4 to the result?",
-    "What is (3 + 5) * 10? Then convert the word 'result' to uppercase.",
-]
-
-for (i, prompt) in enumerate(prompts)
-    println("\n[$i] User: $prompt")
-    response = run!(agent, prompt)
-    println("[$i] Agent: $response")
-    println("-" ^ 60)
+    for prompt in prompts
+        response = run!(agent, prompt; verbose=false)
+        @test response isa String
+        @test !isempty(strip(response))
+    end
 end
