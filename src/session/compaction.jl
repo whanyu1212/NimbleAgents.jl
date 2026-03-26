@@ -6,32 +6,19 @@
 # Context-window management (hybrid summarise-and-compress)
 # ──────────────────────────────────────────────────────────────────────────────
 
-@inline function _estimate_tokens_from_content(content)::Int
-    # ~4 chars per token — OpenAI's own recommended estimation heuristic.
-    # Keep this branch type-stable for JET by only estimating string payloads.
-    if content isa AbstractString
-        return cld(ncodeunits(content), 4)
-    end
-    return 0
-end
-
 # Estimate tokens for a single message.
-# Uses the real token count from provider responses when available (accurate),
-# and falls back to a lightweight string-length heuristic otherwise.
+# Uses the real token count from the PT response when available (accurate),
+# and falls back to the standard ~4 chars/token heuristic for unprocessed msgs.
 function _estimate_tokens(msg::AbstractMessage)::Int
-    _estimate_tokens_from_content(msg.content)
-end
-
-function _estimate_tokens(msg::AIMessage)::Int
-    t = msg.tokens
-    t != (0, 0) && return t[1] + t[2]
-    _estimate_tokens_from_content(msg.content)
-end
-
-function _estimate_tokens(msg::AIToolRequest)::Int
-    t = msg.tokens
-    t != (0, 0) && return t[1] + t[2]
-    _estimate_tokens_from_content(msg.content)
+    # Only AIMessage and AIToolRequest carry a real token count from the API
+    if hasproperty(msg, :tokens)
+        t = msg.tokens
+        if !isnothing(t) && t != (0, 0)
+            return sum(t)
+        end
+    end
+    # ~4 chars per token — OpenAI's own recommended estimation heuristic
+    ceil(Int, length(something(msg.content, "")) / 4)
 end
 
 # Total estimated tokens across the full history.
