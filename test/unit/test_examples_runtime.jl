@@ -22,7 +22,6 @@ function _install_term_stubs!(m::Module)
                 content::Any
                 opts::Dict{Symbol,Any}
             end
-            Panel(content) = Panel(content, Dict{Symbol,Any}())
             Panel(content; kwargs...) = Panel(content, Dict{Symbol,Any}(kwargs))
             Base.show(io::IO, p::Panel) = print(io, p.content)
 
@@ -40,6 +39,11 @@ function _install_term_stubs!(m::Module)
                 data::Any
             end
             Base.show(io::IO, t::Table) = print(io, t.data)
+
+            const Dates = (
+                today=() -> "1970-01-01",
+                format=(x, ::AbstractString) -> string(x),
+            )
         end
     )
     nothing
@@ -55,6 +59,7 @@ function _prepare_example_source(path::AbstractString, src::String)
         src, r"(?m)^import Term\.Progress: ProgressBar, addjob!, update!, with\s*$\n?" => ""
     )
     src = replace(src, r"(?m)^import Term\.Tables: Table\s*$\n?" => "")
+    src = replace(src, r"(?m)^using Dates: Dates\s*$\n?" => "")
     src = replace(src, r"(?m)^using HTTP: HTTP\s*$\n?" => "")
     src = replace(src, r"(?m)^using HTTP, JSON3\s*$\n?" => "using JSON3\n")
 
