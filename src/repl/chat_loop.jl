@@ -84,13 +84,7 @@ end
 function _run_chat_turn!(agent::Agent, input::String, session::Session, verbose::Bool)
     printstyled("$(agent.name)> "; color=:cyan, bold=true)
     try
-        run!(
-            agent,
-            input;
-            session=session,
-            verbose=verbose,
-            on_token=token -> print(token),
-        )
+        run!(agent, input; session=session, verbose=verbose, on_token=token -> print(token))
     catch e
         if e isa HumanInterrupt
             _resume_chat_after_interrupt!(agent, e, session, verbose)
@@ -102,10 +96,7 @@ function _run_chat_turn!(agent::Agent, input::String, session::Session, verbose:
 end
 
 function _resume_chat_after_interrupt!(
-    agent::Agent,
-    e::HumanInterrupt,
-    session::Session,
-    verbose::Bool,
+    agent::Agent, e::HumanInterrupt, session::Session, verbose::Bool
 )
     printstyled("\n  [Interrupted — tool approval required]\n"; color=:yellow)
     printstyled("  Tools: $(join([t.name for t in e.tool_calls], ", "))\n"; color=:yellow)

@@ -2,7 +2,6 @@
 # test_gemini.jl — unit tests for GeminiOpenAISchema
 ###############################################################################
 
-
 @testset "GeminiOpenAISchema — type hierarchy" begin
     schema = GeminiOpenAISchema()
     @test schema isa NimbleAgents.AbstractOpenAISchema
@@ -34,7 +33,9 @@ end
 
 @testset "GeminiOpenAISchema — message rendering inherits from AbstractOpenAISchema" begin
     schema = GeminiOpenAISchema()
-    msgs = NimbleAgents.AbstractMessage[NimbleAgents.SystemMessage("You are helpful."), NimbleAgents.UserMessage("Hello")]
+    msgs = NimbleAgents.AbstractMessage[
+        NimbleAgents.SystemMessage("You are helpful."), NimbleAgents.UserMessage("Hello")
+    ]
     rendered = NimbleAgents.render(schema, msgs)
     @test length(rendered) == 2
     @test rendered[1]["role"] == "system"

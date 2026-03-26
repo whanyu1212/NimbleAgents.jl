@@ -72,7 +72,9 @@ function _spawn_web_chat!(
             )
             run.result = string(result)
             run.status = :done
-            println("[NimbleAgents] run=$(run_id) — done, result length=$(length(run.result))")
+            println(
+                "[NimbleAgents] run=$(run_id) — done, result length=$(length(run.result))"
+            )
             _push_event(run, "done", Dict("result" => run.result))
         catch e
             if e isa ApprovalTimeout
@@ -120,7 +122,9 @@ function _handle_chat(req::HTTP.Request)
     run_id = string(uuid4())
     run = RunState(session_id)
     _runs[run_id] = run
-    println("[NimbleAgents] run=$(run_id) session=$(session_id) agent=$(agent_id) — starting")
+    println(
+        "[NimbleAgents] run=$(run_id) session=$(session_id) agent=$(agent_id) — starting"
+    )
 
     agent = _agent_with_web_hooks(_agents[agent_id], run)
     _spawn_web_chat!(run, run_id, agent, input, session, store)

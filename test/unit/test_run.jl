@@ -6,7 +6,6 @@
 # LLM "returns" to exercise specific code paths in run!.
 ###############################################################################
 
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 # Build a minimal AIMessage (plain text response, no tool calls)
@@ -22,7 +21,9 @@ function _tool_request(tool_name::String, args::Dict; content="")
         name=tool_name,
         args=Dict{Symbol,Any}(Symbol(k) => v for (k, v) in args),
     )
-    NimbleAgents.AIToolRequest(; tool_calls=[tm], content=content, tokens=(5, 5), elapsed=0.1)
+    NimbleAgents.AIToolRequest(;
+        tool_calls=[tm], content=content, tokens=(5, 5), elapsed=0.1
+    )
 end
 
 # ── Basic text response ───────────────────────────────────────────────────────
@@ -423,7 +424,9 @@ end
         conv
     end
     extract_patch = @patch function NimbleAgents.aiextract(conv; return_type, kwargs...)
-        NimbleAgents.AIMessage(; content=ParseRetryReport("ok", 10), tokens=(5, 5), elapsed=0.1)
+        NimbleAgents.AIMessage(;
+            content=ParseRetryReport("ok", 10), tokens=(5, 5), elapsed=0.1
+        )
     end
 
     apply([aitools_patch, extract_patch]) do

@@ -10,7 +10,7 @@ function _as_conversation(conversation)
     else
         throw(
             ArgumentError(
-                "Expected a string or Vector{<:AbstractMessage}, got $(typeof(conversation))"
+                "Expected a string or Vector{<:AbstractMessage}, got $(typeof(conversation))",
             ),
         )
     end

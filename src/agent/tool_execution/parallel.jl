@@ -13,8 +13,9 @@ function _execute_parallel_tool_calls!(
     store::Union{AbstractSessionStore,Nothing},
     verbose::Bool,
 )
-    verbose &&
-        println("[$(agent.name)] executing $(length(last_msg.tool_calls)) tools in parallel")
+    verbose && println(
+        "[$(agent.name)] executing $(length(last_msg.tool_calls)) tools in parallel"
+    )
     for t in last_msg.tool_calls
         _fire(hooks.on_tool_call, agent, t.name, t.args)
     end
@@ -38,9 +39,13 @@ function _execute_parallel_tool_calls!(
         push!(
             turn.tool_calls,
             if isnothing(err)
-                ToolEvent(tool_msg.name, something(tool_msg.args, Dict{Symbol,Any}()), result)
+                ToolEvent(
+                    tool_msg.name, something(tool_msg.args, Dict{Symbol,Any}()), result
+                )
             else
-                ToolEvent(tool_msg.name, something(tool_msg.args, Dict{Symbol,Any}()); error=err)
+                ToolEvent(
+                    tool_msg.name, something(tool_msg.args, Dict{Symbol,Any}()); error=err
+                )
             end,
         )
 

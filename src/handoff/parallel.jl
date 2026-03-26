@@ -41,7 +41,8 @@ function fan_out(
 
     results = if parallel
         tasks = [
-            Threads.@spawn run!(agent, inp; session=session, verbose=verbose) for inp in inputs
+            Threads.@spawn run!(agent, inp; session=session, verbose=verbose) for
+            inp in inputs
         ]
         Any[fetch(t) for t in tasks]
     else
@@ -90,7 +91,8 @@ function spawn_subagents(
 
     if parallel
         tasks = [
-            Threads.@spawn run!(ag, inp; session=session, verbose=verbose) for (ag, inp) in pairs
+            Threads.@spawn run!(ag, inp; session=session, verbose=verbose) for
+            (ag, inp) in pairs
         ]
         return Any[fetch(t) for t in tasks]
     else

@@ -25,7 +25,7 @@ end
 
     if !(has_openai || has_google)
         @test_skip "Skipping live integration: set OPENAI_API_KEY or GOOGLE_API_KEY."
-        return
+        return nothing
     end
 
     model = has_openai ? "gpt-5.4-mini" : "gemini-2.5-flash"

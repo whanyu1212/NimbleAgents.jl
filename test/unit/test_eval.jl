@@ -2,7 +2,6 @@
 # test_eval.jl — unit tests for the eval harness
 ###############################################################################
 
-
 # Reuses _make_turn and _make_tool_event helpers from test_tracer.jl (already
 # in scope via timed_include ordering in runtests.jl).
 
@@ -362,7 +361,9 @@ end
             )
             push!(
                 conv,
-                NimbleAgents.AIToolRequest(; tool_calls=[tm], content="", tokens=(5, 5), elapsed=0.1),
+                NimbleAgents.AIToolRequest(;
+                    tool_calls=[tm], content="", tokens=(5, 5), elapsed=0.1
+                ),
             )
         else
             # Second call: final text

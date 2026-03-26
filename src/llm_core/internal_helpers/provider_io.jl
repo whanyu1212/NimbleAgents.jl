@@ -16,7 +16,9 @@ function _provider_config(model::String)
     end
 end
 
-_schema_for_model(model::String) = startswith(model, "gemini-") ? GeminiOpenAISchema() : OpenAISchema()
+function _schema_for_model(model::String)
+    startswith(model, "gemini-") ? GeminiOpenAISchema() : OpenAISchema()
+end
 
 function _merge_request_kwargs!(body::Dict{String,Any}, kwargs)
     for (key, value) in kwargs
@@ -27,10 +29,7 @@ function _merge_request_kwargs!(body::Dict{String,Any}, kwargs)
 end
 
 function _post_json(url::String, api_key::String, body::Dict{String,Any})
-    headers = [
-        "Authorization" => "Bearer $(api_key)",
-        "Content-Type" => "application/json",
-    ]
+    headers = ["Authorization" => "Bearer $(api_key)", "Content-Type" => "application/json"]
     payload = JSON3.write(body)
     t0 = time()
     resp = HTTP.request("POST", url, headers, payload; status_exception=false)
@@ -130,13 +129,13 @@ function _chat_completion_stream(
             end
             startswith(line, "data:") && push!(data_lines, strip(line[6:end]))
         end
-        !isempty(data_lines) && (usage = _process_sse_event!(data_lines, content, usage, extras))
+        !isempty(data_lines) &&
+            (usage = _process_sse_event!(data_lines, content, usage, extras))
     end
 
     tokens = _usage_tokens(usage)
     pop!(extras, :streamcallback, nothing)
-    AIMessage(
-        ;
+    AIMessage(;
         content=String(take!(content)),
         usage=usage,
         tokens=tokens,
@@ -167,8 +166,7 @@ function _chat_completion(
 
     cfg = _provider_config(model)
     body = Dict{String,Any}(
-        "model" => model,
-        "messages" => render(_schema_for_model(model), messages),
+        "model" => model, "messages" => render(_schema_for_model(model), messages)
     )
     isempty(tools) || (body["tools"] = tools_schema(tools))
     isnothing(tool_choice) || (body["tool_choice"] = tool_choice)

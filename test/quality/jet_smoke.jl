@@ -13,4 +13,3 @@ using JET
     @test_opt NimbleAgents.save!(store, session)
     @test_opt NimbleAgents.list(store)
 end
-

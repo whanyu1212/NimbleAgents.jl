@@ -202,7 +202,9 @@ end
         NimbleAgents.UserMessage("hello"),
         NimbleAgents.AIMessage("world"),
         NimbleAgents.SystemMessage("you are a bot"),
-        NimbleAgents.ToolMessage(content="result", name="my_tool", tool_call_id="tc1", raw="result"),  # raw required by PT
+        NimbleAgents.ToolMessage(
+            content="result", name="my_tool", tool_call_id="tc1", raw="result"
+        ),  # raw required by PT
     ]
 
     for msg in msgs

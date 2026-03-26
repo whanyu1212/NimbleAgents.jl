@@ -72,8 +72,7 @@ function aiextract(
     kwargs...,
 )
     schema = _to_json_schema(return_type)
-    tool = BasicTool(
-        ;
+    tool = BasicTool(;
         name="__structured_output__",
         parameters=schema,
         description="Return the final response in the required structured format.",
@@ -84,17 +83,17 @@ function aiextract(
         tools=[tool],
         model=String(model),
         tool_choice=Dict{String,Any}(
-            "type" => "function",
-            "function" => Dict{String,Any}("name" => tool.name),
+            "type" => "function", "function" => Dict{String,Any}("name" => tool.name)
         ),
         cache=cache,
         kwargs...,
     )
 
     if response isa AIToolRequest && !isempty(response.tool_calls)
-        parsed = _coerce_value(return_type, something(response.tool_calls[1].args, Dict{Symbol,Any}()))
-        return AIMessage(
-            ;
+        parsed = _coerce_value(
+            return_type, something(response.tool_calls[1].args, Dict{Symbol,Any}())
+        )
+        return AIMessage(;
             content=parsed,
             usage=response.usage,
             tokens=response.tokens,
@@ -103,8 +102,7 @@ function aiextract(
         )
     elseif response isa AIMessage
         parsed = _parse_structured_fallback(return_type, response.content)
-        return AIMessage(
-            ;
+        return AIMessage(;
             content=parsed,
             usage=response.usage,
             tokens=response.tokens,

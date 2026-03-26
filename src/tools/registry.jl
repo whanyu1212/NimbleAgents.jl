@@ -46,8 +46,7 @@ method argument names in test environments.
 function dispatch_tool(
     tool_map::Dict{String,<:AbstractTool}, name::String, args::Dict{Symbol,<:Any}
 )
-    haskey(tool_map, name) ||
-        throw(ToolNotFoundError("Tool `$name` not found in tool map"))
+    haskey(tool_map, name) || throw(ToolNotFoundError("Tool `$name` not found in tool map"))
 
     tool = tool_map[name]
     _call_tool(tool, args)

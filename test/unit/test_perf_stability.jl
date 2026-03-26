@@ -16,10 +16,7 @@ end
 
 @testset "Allocation smoke" begin
     patch = @patch function NimbleAgents.aitools(conv; kwargs...)
-        push!(
-            conv,
-            NimbleAgents.AIMessage(; content="ok", tokens=(8, 4), elapsed=0.01),
-        )
+        push!(conv, NimbleAgents.AIMessage(; content="ok", tokens=(8, 4), elapsed=0.01))
         conv
     end
 

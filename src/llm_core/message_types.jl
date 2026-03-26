@@ -99,9 +99,15 @@ function AIToolRequest(;
     )
 end
 
-ToolCall(; id::AbstractString="", name::AbstractString, args=Dict{Symbol,Any}()) = ToolMessage(
-    ; content=nothing, raw="", tool_call_id=String(id), name=String(name), args=_symbol_dict(args)
-)
+function ToolCall(; id::AbstractString="", name::AbstractString, args=Dict{Symbol,Any}())
+    ToolMessage(;
+        content=nothing,
+        raw="",
+        tool_call_id=String(id),
+        name=String(name),
+        args=_symbol_dict(args),
+    )
+end
 
 """
     AbstractTool

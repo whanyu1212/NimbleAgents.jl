@@ -18,7 +18,9 @@ function _is_definition_line(line::String)
 end
 
 function _collect_docstyle_violations(src_root::String)
-    violations = NamedTuple{(:file, :line, :first, :definition),Tuple{String,Int,String,String}}[]
+    violations = NamedTuple{
+        (:file, :line, :first, :definition),Tuple{String,Int,String,String}
+    }[]
     for (root, _, files) in walkdir(src_root)
         for f in files
             endswith(f, ".jl") || continue

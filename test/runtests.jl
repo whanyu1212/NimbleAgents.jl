@@ -54,11 +54,9 @@ apply(f::Function, patch::Patch) = apply(patch, f)
 apply(f::Function, patches::AbstractVector{Patch}) = apply(patches, f)
 
 macro patch(def)
-    def isa Expr && def.head == :function ||
-        error("@patch expects a function definition")
+    def isa Expr && def.head == :function || error("@patch expects a function definition")
     sig = def.args[1]
-    sig isa Expr && sig.head == :call ||
-        error("@patch expects a named function definition")
+    sig isa Expr && sig.head == :call || error("@patch expects a named function definition")
     fname = sig.args[1]
     target = if fname isa Expr && fname.head == :. && length(fname.args) == 2
         prop = fname.args[2]
@@ -79,12 +77,10 @@ macro patch(def)
     patched_sig.args[1] = patched_name
     patched_def = Expr(:function, patched_sig, def.args[2])
 
-    return esc(
-        quote
-            $patched_def
-            Mocking.Patch($(QuoteNode(target)), $patched_name)
-        end,
-    )
+    return esc(quote
+        $patched_def
+        Mocking.Patch($(QuoteNode(target)), $patched_name)
+    end)
 end
 
 end
@@ -92,8 +88,8 @@ end
 using .Mocking
 Mocking.activate()
 
-const RUN_LIVE_TESTS = lowercase(get(ENV, "NIMBLEAGENTS_RUN_LIVE_TESTS", "false")) in
-                       ("1", "true", "yes")
+const RUN_LIVE_TESTS =
+    lowercase(get(ENV, "NIMBLEAGENTS_RUN_LIVE_TESTS", "false")) in ("1", "true", "yes")
 
 # Tools must be defined at module scope (not inside @testset blocks) so that
 # Julia does not mangle argument names in closure-wrapped code.
@@ -183,11 +179,7 @@ function timed_include(path)
 end
 
 @testset "Aqua" begin
-    Aqua.test_all(
-        NimbleAgents;
-        stale_deps=(ignore=[:Test],),
-        deps_compat=(ignore=[:Test],),
-    )
+    Aqua.test_all(NimbleAgents; stale_deps=(ignore=[:Test],), deps_compat=(ignore=[:Test],))
 end
 
 @testset "NimbleAgents.jl" begin

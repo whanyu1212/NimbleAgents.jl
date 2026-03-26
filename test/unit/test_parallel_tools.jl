@@ -5,7 +5,6 @@
 # Tools defined at module scope (runtests.jl) to avoid closure mangling.
 ###############################################################################
 
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 _ai_msg_p(text) = NimbleAgents.AIMessage(; content=text, tokens=(10, 10), elapsed=0.1)

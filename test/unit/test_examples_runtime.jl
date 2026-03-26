@@ -29,9 +29,9 @@ function _install_term_stubs!(m::Module)
             tprintln(args...) = println(args...)
 
             struct ProgressBar end
-            addjob!(::ProgressBar; N::Integer=1, description::AbstractString="") = (
-                N=N, description=String(description), progress=Ref(0)
-            )
+            function addjob!(::ProgressBar; N::Integer=1, description::AbstractString="")
+                (N=N, description=String(description), progress=Ref(0))
+            end
             update!(job) = nothing
             with(::ProgressBar, f::Function) = f()
             with(f::Function, ::ProgressBar) = f()
@@ -52,8 +52,7 @@ function _prepare_example_source(path::AbstractString, src::String)
     src = replace(src, r"(?m)^DotEnv\.load!\(\)\s*$\n?" => "")
     src = replace(src, r"(?m)^import Term: Panel, tprintln\s*$\n?" => "")
     src = replace(
-        src,
-        r"(?m)^import Term\.Progress: ProgressBar, addjob!, update!, with\s*$\n?" => "",
+        src, r"(?m)^import Term\.Progress: ProgressBar, addjob!, update!, with\s*$\n?" => ""
     )
     src = replace(src, r"(?m)^import Term\.Tables: Table\s*$\n?" => "")
     src = replace(src, r"(?m)^using HTTP: HTTP\s*$\n?" => "")
@@ -69,7 +68,8 @@ function _prepare_example_source(path::AbstractString, src::String)
     # Avoid external MCP process startup in smoke mode.
     if endswith(path, joinpath("mcp", "langchain_docs.jl"))
         needle = "    mcp_servers=[langchain_mcp],"
-        occursin(needle, src) || error("langchain_docs.jl changed; update smoke patch target")
+        occursin(needle, src) ||
+            error("langchain_docs.jl changed; update smoke patch target")
         src = replace(src, needle => "    mcp_servers=MCPServer[],")
     end
 
@@ -124,7 +124,9 @@ function _mock_ai_message(conversation)
     )
 end
 
-function _mock_aitools(conversation; return_all::Bool=false, streamcallback=nothing, kwargs...)
+function _mock_aitools(
+    conversation; return_all::Bool=false, streamcallback=nothing, kwargs...
+)
     msg = _mock_ai_message(conversation)
     _emit_stream!(streamcallback, String(msg.content))
     if return_all
@@ -134,7 +136,9 @@ function _mock_aitools(conversation; return_all::Bool=false, streamcallback=noth
     msg
 end
 
-function _mock_aigenerate(conversation; return_all::Bool=false, streamcallback=nothing, kwargs...)
+function _mock_aigenerate(
+    conversation; return_all::Bool=false, streamcallback=nothing, kwargs...
+)
     msg = _mock_ai_message(conversation)
     _emit_stream!(streamcallback, String(msg.content))
     if return_all
@@ -210,10 +214,7 @@ end
                 try
                     _run_example_smoke(path)
                 catch e
-                    push!(
-                        failures,
-                        String(path) => sprint(showerror, e, catch_backtrace()),
-                    )
+                    push!(failures, String(path) => sprint(showerror, e, catch_backtrace()))
                 end
             end
         end

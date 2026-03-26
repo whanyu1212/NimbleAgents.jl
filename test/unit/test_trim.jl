@@ -121,7 +121,9 @@
             max_tool_output=500,
         )
 
-        _trim_ai_msg(text) = NimbleAgents.AIMessage(; content=text, tokens=(10, 10), elapsed=0.1)
+        _trim_ai_msg(text) = NimbleAgents.AIMessage(;
+            content=text, tokens=(10, 10), elapsed=0.1
+        )
         function _trim_tool_req(tool_name, args)
             tm = NimbleAgents.ToolMessage(;
                 content=nothing,
@@ -130,7 +132,9 @@
                 name=tool_name,
                 args=Dict{Symbol,Any}(Symbol(k) => v for (k, v) in args),
             )
-            NimbleAgents.AIToolRequest(; tool_calls=[tm], content="", tokens=(5, 5), elapsed=0.1)
+            NimbleAgents.AIToolRequest(;
+                tool_calls=[tm], content="", tokens=(5, 5), elapsed=0.1
+            )
         end
 
         call_count = Ref(0)
@@ -184,7 +188,9 @@
             max_tool_output=50_000,  # generous agent limit — per-tool 200 should win
         )
 
-        _trim_ai_msg2(text) = NimbleAgents.AIMessage(; content=text, tokens=(10, 10), elapsed=0.1)
+        _trim_ai_msg2(text) = NimbleAgents.AIMessage(;
+            content=text, tokens=(10, 10), elapsed=0.1
+        )
         function _trim_tool_req2(tool_name, args)
             tm = NimbleAgents.ToolMessage(;
                 content=nothing,
@@ -193,7 +199,9 @@
                 name=tool_name,
                 args=Dict{Symbol,Any}(Symbol(k) => v for (k, v) in args),
             )
-            NimbleAgents.AIToolRequest(; tool_calls=[tm], content="", tokens=(5, 5), elapsed=0.1)
+            NimbleAgents.AIToolRequest(;
+                tool_calls=[tm], content="", tokens=(5, 5), elapsed=0.1
+            )
         end
 
         call_count2 = Ref(0)

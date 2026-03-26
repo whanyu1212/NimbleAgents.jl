@@ -19,7 +19,9 @@ function render(::AbstractOpenAISchema, messages::Vector{<:AbstractMessage})
                     "type" => "function",
                     "function" => Dict{String,Any}(
                         "name" => tc.name,
-                        "arguments" => JSON3.write(_string_dict(something(tc.args, Dict{Symbol,Any}()))),
+                        "arguments" => JSON3.write(
+                            _string_dict(something(tc.args, Dict{Symbol,Any}()))
+                        ),
                     ),
                 ) for tc in msg.tool_calls
             ]

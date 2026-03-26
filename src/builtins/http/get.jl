@@ -26,7 +26,8 @@ const http_get_tool = NimbleTool(;
         url = get(args, :url, "")
         headers_json = get(args, :headers, "{}")
         parsed_headers = _parse_headers_json(headers_json)
-        isnothing(parsed_headers) && return "Error: invalid headers JSON: $(headers_json)"
+        isnothing(parsed_headers) &&
+            return "Error: invalid headers JSON: $(headers_json)"
 
         try
             resp = HTTP.get(url, parsed_headers)

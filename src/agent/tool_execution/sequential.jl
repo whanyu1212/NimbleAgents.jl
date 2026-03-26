@@ -31,9 +31,13 @@ function _execute_sequential_tool_calls!(
         push!(
             turn.tool_calls,
             if isnothing(err)
-                ToolEvent(tool_msg.name, something(tool_msg.args, Dict{Symbol,Any}()), result)
+                ToolEvent(
+                    tool_msg.name, something(tool_msg.args, Dict{Symbol,Any}()), result
+                )
             else
-                ToolEvent(tool_msg.name, something(tool_msg.args, Dict{Symbol,Any}()); error=err)
+                ToolEvent(
+                    tool_msg.name, something(tool_msg.args, Dict{Symbol,Any}()); error=err
+                )
             end,
         )
 
@@ -41,9 +45,11 @@ function _execute_sequential_tool_calls!(
 
         tool_obj = get(tool_map, tool_msg.name, nothing)
         result_str = if result isa Handoff
-            isempty(result.message) ?
-            "Handed off to $(result.target.name)." :
-            "Handed off to $(result.target.name): $(result.message)"
+            if isempty(result.message)
+                "Handed off to $(result.target.name)."
+            else
+                "Handed off to $(result.target.name): $(result.message)"
+            end
         else
             string(result)
         end
@@ -60,7 +66,9 @@ function _execute_sequential_tool_calls!(
         # downstream OpenAI-compatible providers see a valid assistant tool-call /
         # tool-result pair in history.
         if result isa Handoff
-            _finish!(result, turn, t_start, session, conversation, n_seeded, hooks, agent, store)
+            _finish!(
+                result, turn, t_start, session, conversation, n_seeded, hooks, agent, store
+            )
             return (status=:return, value=result)
         end
 

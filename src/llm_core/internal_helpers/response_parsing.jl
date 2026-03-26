@@ -15,9 +15,9 @@ function _parse_usage(obj)::TokenUsage
 end
 
 _usage_tokens(::Nothing) = (0, 0)
-_usage_tokens(usage::TokenUsage) = (
-    something(usage.input_tokens, 0), something(usage.output_tokens, 0)
-)
+function _usage_tokens(usage::TokenUsage)
+    (something(usage.input_tokens, 0), something(usage.output_tokens, 0))
+end
 
 function _message_extras(message)
     extras = Dict{Symbol,Any}()
@@ -92,8 +92,7 @@ function _parse_chat_response(resp, elapsed::Real)
             args = _parse_tool_args(get(fn, :arguments, "{}"))
             push!(
                 tool_calls,
-                ToolMessage(
-                    ;
+                ToolMessage(;
                     content=nothing,
                     raw=get(fn, :arguments, ""),
                     tool_call_id=get(tc, :id, ""),
@@ -102,8 +101,13 @@ function _parse_chat_response(resp, elapsed::Real)
                 ),
             )
         end
-        return AIToolRequest(
-            ; tool_calls, content=_extract_message_content(message), usage, tokens, elapsed, extras
+        return AIToolRequest(;
+            tool_calls,
+            content=_extract_message_content(message),
+            usage,
+            tokens,
+            elapsed,
+            extras,
         )
     end
 

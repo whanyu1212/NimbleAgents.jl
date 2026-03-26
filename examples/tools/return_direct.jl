@@ -29,9 +29,11 @@ function example_model(; tier::Symbol=:mini)
     override = strip(get(ENV, "NIMBLEAGENTS_EXAMPLE_MODEL", ""))
     !isempty(override) && return override
 
-    openai_model, gemini_model = tier === :nano ?
-        ("gpt-5.4-nano-2026-03-17", "gemini-2.5-flash-lite") :
+    openai_model, gemini_model = if tier === :nano
+        ("gpt-5.4-nano-2026-03-17", "gemini-2.5-flash-lite")
+    else
         ("gpt-5.4-mini", "gemini-2.5-flash")
+    end
 
     provider = lowercase(strip(get(ENV, "NIMBLEAGENTS_EXAMPLE_PROVIDER", "")))
     provider == "openai" && return openai_model

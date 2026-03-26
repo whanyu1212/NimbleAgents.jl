@@ -43,7 +43,9 @@ function _build_mcp_tools(client::AnyMCPClient, tools_raw)::Vector{NimbleTool}
 
         push!(
             tools,
-            NimbleTool(; name=name, parameters=schema, description=description, callable=callable),
+            NimbleTool(;
+                name=name, parameters=schema, description=description, callable=callable
+            ),
         )
     end
     tools

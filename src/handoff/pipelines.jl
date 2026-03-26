@@ -42,11 +42,15 @@ function run_pipeline!(
 
         handoff_count += 1
         if handoff_count > max_handoffs
-            println(stderr, "[run_pipeline!] reached max_handoffs ($max_handoffs); stopping.")
+            println(
+                stderr, "[run_pipeline!] reached max_handoffs ($max_handoffs); stopping."
+            )
             return result.message
         end
 
-        verbose && println("[run_pipeline!] handoff: $(current_agent.name) → $(result.target.name)")
+        verbose && println(
+            "[run_pipeline!] handoff: $(current_agent.name) → $(result.target.name)"
+        )
 
         # Apply history filter before handing off
         if !isnothing(session) && result.history_filter.kind != :all

@@ -2,7 +2,6 @@
 # test_sqlite_store.jl — unit tests for SQLiteSessionStore
 ###############################################################################
 
-
 @testset "SQLiteSessionStore — construction" begin
     path = joinpath(mktempdir(), "test.db")
     store = SQLiteSessionStore(path)
@@ -133,7 +132,9 @@ end
     push!(s.history, NimbleAgents.AIMessage("hi"))
     push!(
         s.history,
-        NimbleAgents.ToolMessage(content="result", name="my_tool", tool_call_id="tc1", raw="result"),
+        NimbleAgents.ToolMessage(
+            content="result", name="my_tool", tool_call_id="tc1", raw="result"
+        ),
     )
     save!(store, s)
 

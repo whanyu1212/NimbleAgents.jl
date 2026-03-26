@@ -144,9 +144,14 @@ end
         tm = NimbleAgents.ToolMessage(
             content=nothing, raw="", tool_call_id="c1", name="foo", args=Dict{Symbol,Any}()
         )
-        atr = NimbleAgents.AIToolRequest(; tool_calls=[tm], content="", tokens=(5, 5), elapsed=0.1)
+        atr = NimbleAgents.AIToolRequest(;
+            tool_calls=[tm], content="", tokens=(5, 5), elapsed=0.1
+        )
         msgs_with_tools = NimbleAgents.AbstractMessage[
-            NimbleAgents.UserMessage("hello"), atr, tm, NimbleAgents.AIMessage(content="done")
+            NimbleAgents.UserMessage("hello"),
+            atr,
+            tm,
+            NimbleAgents.AIMessage(content="done"),
         ]
         stripped2 = NimbleAgents._apply_handoff_filter(
             HandoffFilter(:strip_tools), msgs_with_tools
@@ -171,7 +176,9 @@ end
 
         # :custom function
         only_user = HandoffFilter(
-            h -> NimbleAgents.AbstractMessage[m for m in h if m isa NimbleAgents.UserMessage]
+            h -> NimbleAgents.AbstractMessage[
+                m for m in h if m isa NimbleAgents.UserMessage
+            ],
         )
         user_msgs = NimbleAgents._apply_handoff_filter(only_user, msgs)
         @test length(user_msgs) == 2
@@ -317,14 +324,18 @@ end
                 )
                 push!(
                     conv,
-                    NimbleAgents.AIToolRequest(; tool_calls=[tc], content=nothing, tokens=(5, 5), elapsed=0.1),
+                    NimbleAgents.AIToolRequest(;
+                        tool_calls=[tc], content=nothing, tokens=(5, 5), elapsed=0.1
+                    ),
                 )
                 return conv
             end
 
             if model == billing.model
                 reqs = [m for m in conv if m isa NimbleAgents.AIToolRequest]
-                replies = Set(m.tool_call_id for m in conv if m isa NimbleAgents.ToolMessage)
+                replies = Set(
+                    m.tool_call_id for m in conv if m isa NimbleAgents.ToolMessage
+                )
                 for req in reqs
                     ids = Set(tc.tool_call_id for tc in req.tool_calls)
                     ids ⊆ replies || error("missing tool response in handoff history")

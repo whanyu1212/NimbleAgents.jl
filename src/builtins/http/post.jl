@@ -32,7 +32,8 @@ const http_post_tool = NimbleTool(;
         body = get(args, :body, "")
         headers_json = get(args, :headers, "{}")
         extra_headers = _parse_headers_json(headers_json)
-        isnothing(extra_headers) && return "Error: invalid headers JSON: $(headers_json)"
+        isnothing(extra_headers) &&
+            return "Error: invalid headers JSON: $(headers_json)"
 
         all_headers = vcat(["Content-Type" => "application/json"], extra_headers)
         try
