@@ -175,7 +175,11 @@ function timed_include(path)
     t0 = time()
     include(path)
     dt = round(time() - t0; digits=2)
-    println("  ⏱  $(path) — $(dt)s")
+    try
+        println("  ⏱  $(path) — $(dt)s")
+    catch err
+        err isa IOError || rethrow()
+    end
 end
 
 @testset "Aqua" begin

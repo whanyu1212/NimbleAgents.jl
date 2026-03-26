@@ -74,8 +74,32 @@ function _collect_docstyle_violations(src_root::String)
 end
 
 function _has_doc(mod::Module, sym::Symbol)::Bool
-    binding = Base.Docs.Binding(mod, sym)
-    return !isnothing(Base.Docs.doc(binding))
+    if isdefined(Base.Docs, :hasdoc)
+        hasdoc = getfield(Base.Docs, :hasdoc)
+        try
+            return hasdoc(mod, sym)
+        catch
+            # Fall back to older doc lookup paths below.
+        end
+    end
+
+    if isdefined(Base.Docs, :Binding)
+        try
+            binding = Base.Docs.Binding(mod, sym)
+            return !isnothing(Base.Docs.doc(binding))
+        catch
+            # Fall back to value-based lookup below.
+        end
+    end
+
+    if !startswith(String(sym), "@") && isdefined(mod, sym)
+        try
+            return !isnothing(Base.Docs.doc(getproperty(mod, sym)))
+        catch
+            return false
+        end
+    end
+    return false
 end
 
 @testset "Exported API docstrings present" begin
