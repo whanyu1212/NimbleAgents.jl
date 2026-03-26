@@ -17,7 +17,8 @@ end
 
 function _install_term_stubs!(m::Module)
     Core.eval(
-        m, quote
+        m,
+        quote
             struct Panel
                 content::Any
                 opts::Dict{Symbol,Any}
@@ -41,10 +42,9 @@ function _install_term_stubs!(m::Module)
             Base.show(io::IO, t::Table) = print(io, t.data)
 
             const Dates = (
-                today=() -> "1970-01-01",
-                format=(x, ::AbstractString) -> string(x),
+                today=() -> "1970-01-01", format=(x, ::AbstractString) -> string(x)
             )
-        end
+        end,
     )
     nothing
 end
@@ -189,11 +189,7 @@ function _run_example_smoke(path::AbstractString)
 
     mktempdir() do tmp
         cd(tmp) do
-            redirect_stdout(devnull) do
-                redirect_stderr(devnull) do
-                    Base.include_string(m, src, String(path))
-                end
-            end
+            Base.include_string(m, src, String(path))
         end
     end
     nothing

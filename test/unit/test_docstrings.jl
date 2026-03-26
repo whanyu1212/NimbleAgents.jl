@@ -73,6 +73,11 @@ function _collect_docstyle_violations(src_root::String)
     violations
 end
 
+function _has_doc(mod::Module, sym::Symbol)::Bool
+    binding = Base.Docs.Binding(mod, sym)
+    return !isnothing(Base.Docs.doc(binding))
+end
+
 @testset "Exported API docstrings present" begin
     syms = Base.names(NimbleAgents; all=false, imported=false)
     missing = String[]
@@ -81,7 +86,7 @@ end
             value = getproperty(NimbleAgents, s)
             value isa NimbleAgents.AbstractTool && continue
         end
-        if !Base.Docs.hasdoc(NimbleAgents, s)
+        if !_has_doc(NimbleAgents, s)
             push!(missing, String(s))
         end
     end
