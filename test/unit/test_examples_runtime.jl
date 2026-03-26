@@ -7,6 +7,7 @@ function _example_files(examples_root::AbstractString)
     for (root, _, names) in walkdir(examples_root)
         for name in names
             endswith(name, ".jl") || continue
+            startswith(name, "._") && continue
             push!(files, joinpath(root, name))
         end
     end
