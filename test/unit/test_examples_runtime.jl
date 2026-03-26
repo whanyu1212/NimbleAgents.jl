@@ -16,8 +16,7 @@ end
 
 function _install_term_stubs!(m::Module)
     Core.eval(
-        m,
-        quote
+        m, quote
             struct Panel
                 content::Any
                 opts::Dict{Symbol,Any}
@@ -40,7 +39,7 @@ function _install_term_stubs!(m::Module)
                 data::Any
             end
             Base.show(io::IO, t::Table) = print(io, t.data)
-        end,
+        end
     )
     nothing
 end
